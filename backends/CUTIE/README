@@ -1,0 +1,14 @@
+Toolchain for training Ternary Neural Networks and map to TNN-Accelerator core (layerwise)
+
+TNNUtils.py defines PyTorch classes and layers that are compatible with the mapping software
+Right now ConvBlock is sure to work, ResNetBlock does not work yet.
+
+TNNNet.py defines the network architecture and training and testing code.
+For the allowed Alphabet C = ConvBlock and M = MaxPool2D, the following expressions can be mapped:
+[[C][C]*[M]]*
+
+TNNExtract.py extracts the activations, weights, thresholds and pooling information for a given network
+to map it to the accelerator architecture layer-wise for efficiency evaluations
+
+TNNMapper.py map the extracted information from the TNNExtract.py code layerwise to accelerator code, i.e. it compiles
+it to signals and defines signals to read out the results from memory.
