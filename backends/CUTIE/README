@@ -12,3 +12,9 @@ to map it to the accelerator architecture layer-wise for efficiency evaluations
 
 TNNMapper.py map the extracted information from the TNNExtract.py code layerwise to accelerator code, i.e. it compiles
 it to signals and defines signals to read out the results from memory.
+
+Be sure to set the tnn-accel project path in TNNMapper.py before running it.
+This is necessary to determine the signal widths.
+A working conda environment requirements.txt is found in condaEnv.txt
+
+Also make sure to create a symbolic path to global_parameters.py in /tnn_accel/stimuli/global_parameters.py
