@@ -8,8 +8,10 @@ class Controller(object):
 
     @staticmethod
     def get_modules(nodes_set):
-        return [n[1] for n in nodes_set]
+#        return [n[1] for n in nodes_set]
+        return [v for m in nodes_set.modules() for v in m.__dict__.values() if isinstance(v, Controller)]
 
+        
     def state_dict(self):
         return {}
 

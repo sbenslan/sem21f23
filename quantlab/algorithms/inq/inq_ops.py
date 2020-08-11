@@ -62,7 +62,8 @@ class INQController(Controller):
     
     @staticmethod
     def get_inq_modules(nodes_set):
-        return [n[1] for n in nodes_set if (isinstance(n[1], INQLinear) or isinstance(n[1], INQConv1d) or isinstance(n[1], INQConv2d))]
+#         return [n[1] for n in nodes_set if (isinstance(n[1], INQLinear) or isinstance(n[1], INQConv1d) or isinstance(n[1], INQConv2d))]
+        return [m for m in nodes_set.modules() if (isinstance(m, INQLinear) or isinstance(m, INQConv1d) or isinstance(m, INQConv2d))]
 
 
 class INQNodeController:

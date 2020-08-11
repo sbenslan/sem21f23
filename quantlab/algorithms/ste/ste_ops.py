@@ -34,8 +34,8 @@ class STEController(Controller):
 
     @staticmethod
     def get_ste_modules(nodes_set):
-        return [n[1] for n in nodes_set if isinstance(n[1], STEActivation)]
-
+        #return [n[1] for n in nodes_set if isinstance(n[1], STEActivation)]
+        return [m for m in nodes_set.modules() if isinstance(m, STEActivation)]
 
 class STEActivation(torch.nn.Module):
     """Quantizes activations according to the straight-through estiamtor (STE).
