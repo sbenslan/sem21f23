@@ -235,6 +235,42 @@ class INQNodeController:
             idx_freeze = idx_new_quant[:new_count-old_count]
             # quantize the weights at these indexes
             self.weight_frozen.data.flatten()[idx_freeze] = self.inq_quantize(self.weight.data.flatten()[idx_freeze], quant_levels)
+        
+        # Order weights in the following way:
+        # 1) Ascending order by absolute value -> x[1], x[2], ... x[N], where x[N] is the largest value
+        # 2) Re-order weights in a zig-zag fashion ->  x[N], x[1], x[N-1], x[2], x[N-2], x[3] ...
+        elif self.quant_strategy == "zig-zag":
+            prevCount = self.weight_frozen.numel() - torch.isnan(self.weight_frozen.data).sum(dtype=torch.long).item()
+            newCount = int(self.fraction*self.weight_frozen.numel())
+            
+            nonQuantIdxs = torch.nonzero(torch.isnan(self.weight_frozen.flatten()))[:,0]
+            _, idxs = self.weight.flatten()[nonQuantIdxs].abs().sort(descending=False)
+            zigzagidxs = [None]*len(idxs)
+
+            for i in range(len(idxs)):
+                zigzagidxs[i] = (i%2)*idxs[int(i/2)] + ((i+1)%2)*idxs[len(idxs)-1-int(i/2)]
+            idxs = zigzagidxs
+            length = len(idxs[:newCount-prevCount])
+            idxsSorted = nonQuantIdxs[idxs[:newCount-prevCount]]
+            idxsFreeze = idxsSorted[:newCount-prevCount]
+            
+            self.weight_frozen.data.flatten()[idxsFreeze] = self.inqQuantize(self.weight.data.flatten()[idxsFreeze], quantLevels)
+
+        # Order weights in the following way:
+        # 1) Ascending order by absolute value -> x[1], x[2], ... x[N], where x[N] is the largest value
+        elif  self.quant_strategy == "magnitude-inverse":
+
+            prevCount = self.weight_frozen.numel() - torch.isnan(self.weight_frozen.data).sum(dtype=torch.long).item()
+            newCount = int(self.fraction*self.weight_frozen.numel())
+
+            nonQuantIdxs = torch.nonzero(torch.isnan(self.weight_frozen.flatten()))[:,0]
+            _, idxs = self.weight.flatten()[nonQuantIdxs].abs().sort(descending=False)
+            length = len(idxs[:newCount-prevCount])
+            idxsSorted = nonQuantIdxs[idxs[:newCount-prevCount]]
+            idxsFreeze = idxsSorted[:newCount-prevCount]
+            
+            self.weight_frozen.data.flatten()[idxsFreeze] = self.inqQuantize(self.weight.data.flatten()[idxsFreeze], quantLevels)
+
         else:
             assert False
     
