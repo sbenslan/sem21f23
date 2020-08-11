@@ -32,11 +32,9 @@ import numpy as np
 
 from scipy.linalg import *
 
-import quantlab_lr_schedulers
-# import quantlab_indiv
-from quantlab_indiv import Controller
-from quantlab_indiv.inq_ops import INQController, INQLinear, INQConv2d
-from quantlab_indiv.ste_ops import STEController, STEActivation
+from quantlab.algorithms.ste import STEController, STEActivation
+from quantlab.algorithms.inq import INQController, INQLinear, INQConv2d
+from quantlab.algorithms import controller
 
 # A ConvBlock is defined as the following layer stack:
 #  torch.nn.Conv2D 1[quantization=false]
@@ -51,7 +49,7 @@ from quantlab_indiv.ste_ops import STEController, STEActivation
 # The HardTanh activation is not really a limitation for ternary neural networks...
 
 class ConvBlock(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, actQuantMonitorEpoch, actQuantStartEpoch, stride=(1,1),quantization=False, quantizationDepth=3, writeback=True, strategy="magnitude"):
+    def __init__(self, in_channels, out_channels, actQuantStartEpoch, stride=(1,1),quantization=False, quantizationDepth=3, writeback=True, quant_strategy="magnitude"):
         super(ConvBlock, self).__init__()
         
         self.quantization = quantization
@@ -59,15 +57,12 @@ class ConvBlock(torch.nn.Module):
         self.writeback = writeback
         self.stride=stride
 
-        self.strategy = strategy
-
-        self.actQuantMonitorEpoch = actQuantMonitorEpoch
+        self.quant_strategy = quant_strategy
         self.actQuantStartEpoch = actQuantStartEpoch
         
         self.layers = self.CreateCNN(in_channels, out_channels)
 
-        self.quantActCtrl =  STEController(STEController.getSteModules(self))
-        
+        self.quantActCtrl =  STEController(STEController.get_ste_modules(self.layers))
                
     def CreateCNN(self, in_channels, out_channels):
         cnnlayers = [] 
@@ -76,12 +71,11 @@ class ConvBlock(torch.nn.Module):
             cnnlayers += [torch.nn.BatchNorm2d(num_features=out_channels, track_running_stats=True)]
             cnnlayers += [torch.nn.ReLU()]
         else:
-            cnnlayers += [STEActivation(startEpoch=self.actQuantStartEpoch, 
-                                         monitorEpoch=self.actQuantMonitorEpoch, 
-                                         numLevels=self.quantizationDepth)]
+            cnnlayers += [STEActivation(quant_start_epoch=self.actQuantStartEpoch, 
+                                         num_levels=self.quantizationDepth)]
             cnnlayers += [INQConv2d(in_channels, out_channels, stride=self.stride, kernel_size=3, padding=1, 
-                                         numLevels=self.quantizationDepth, strategy=self.strategy, 
-                                         quantInitMethod='uniform-l2opt')]
+                                         num_levels=self.quantizationDepth, quant_strategy=self.quant_strategy, 
+                                         quant_init_method='uniform-l2-opt')]
             if(self.writeback == True):
                 cnnlayers += [torch.nn.BatchNorm2d(num_features=out_channels, track_running_stats=True)]
                 cnnlayers += [torch.nn.Hardtanh()]
@@ -121,21 +115,19 @@ class ResBlock(torch.nn.Module):
                 cnnlayers += [torch.nn.ReLU()]
                 cnnlayers += [torch.nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=(3,3), padding=(1,1))]
         else:
-            cnnlayers += [STEActivation(startEpoch=actQuantStartEpoch, 
-                                         monitorEpoch=actQuantMonitorEpoch, 
-                                         numLevels=self.quantizationDepth)]
+            cnnlayers += [STEActivation(quant_start_epoch=actQuantStartEpoch, 
+                                         num_levels=self.quantizationDepth)]
             cnnlayers += [INQConv2d(in_channels, out_channels, kernel_size=3, padding=1, 
-                                         numLevels=self.quantizationDepth, strategy=self.strategy, 
-                                         quantInitMethod='uniform-l2opt')]
+                                         num_levels=self.quantizationDepth, quant_strategy=self.quant_strategy, 
+                                         quant_init_method='uniform-l2-opt')]
             for i in range(depth-1):
                 cnnlayers += [torch.nn.BatchNorm2d(num_features=out_channels, track_running_stats=True)]
                 cnnlayers += [torch.nn.Hardtanh()]
-                cnnlayers += [STEActivation(startEpoch=actQuantStartEpoch, 
-                                         monitorEpoch=actQuantMonitorEpoch, 
-                                         numLevels=self.quantizationDepth)]
+                cnnlayers += [STEActivation(quant_start_epoch=actQuantStartEpoch,  
+                                         num_levels=self.quantizationDepth)]
                 cnnlayers += [INQConv2d(out_channels, out_channels, kernel_size=3, padding=1, 
-                                         numLevels=self.quantizationDepth, strategy=self.strategy, 
-                                         quantInitMethod='uniform-l2opt')]
+                                         num_levels=self.quantizationDepth, quant_strategy=self.quant_strategy, 
+                                         quant_init_method='uniform-l2-opt')]
 
         return torch.nn.Sequential(*cnnlayers)
     
@@ -144,12 +136,11 @@ class ResBlock(torch.nn.Module):
         if (self.quantization == False):
             bypass += [torch.nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3,3), padding=(1,1))]
         else:
-            bypass += [STEActivation(startEpoch=actQuantStartEpoch, 
-                                             monitorEpoch=actQuantMonitorEpoch, 
-                                             numLevels=self.quantizationDepth)]
+            bypass += [STEActivation(quant_start_epoch=actQuantStartEpoch, 
+                                             num_levels=self.quantizationDepth)]
             bypass += [INQConv2d(in_channels, out_channels, kernel_size=3, padding=1, 
-                                             numLevels=self.quantizationDepth, strategy=self.strategy, 
-                                             quantInitMethod='uniform-l2opt')]
+                                             num_levels=self.quantizationDepth, quant_strategy=self.quant_strategy, 
+                                             quant_init_method='uniform-l2-opt')]
         return torch.nn.Sequential(*bypass)
     
     def CreateAfterMerge(self, out_channels):
@@ -176,7 +167,7 @@ class ResBlock(torch.nn.Module):
 # 2) Allow comparison of fixed dense layers vs. trainable dense layers
     
 class HardDense_Model(torch.nn.Module):
-    def __init__(self, numFeatures, numClasses, actQuantMonitorEpoch, actQuantStartEpoch, weightQuantSchedule, classTrain=True, quantized=False, quantizationDepth=3, strategy="magnitude", channels=128):
+    def __init__(self, numFeatures, numClasses, actQuantStartEpoch, weightQuantSchedule, classTrain=True, quantized=False, quantizationDepth=3, quant_strategy="magnitude", channels=128):
         super(HardDense_Model, self).__init__()
 
         self.channels = channels
@@ -187,18 +178,17 @@ class HardDense_Model(torch.nn.Module):
         self.quantized = quantized
         self.quantizationDepth = quantizationDepth
 
-        self.actQuantMonitorEpoch = actQuantMonitorEpoch
         self.actQuantStartEpoch = actQuantStartEpoch
 
-        self.strategy = strategy
+        self.quant_strategy = quant_strategy
         
         self.CNNLayers = self.CreateCNN()
         self.HardClassifier = self.CreateClassifier(numFeatures, numClasses)
 
-        self.quantWghtCtrl = INQController(INQController.getInqModules(self),
+        self.quantWghtCtrl = INQController(INQController.get_inq_modules(self.CNNLayers),
                                            weightQuantSchedule,
-                                           clearOptimStateOnStep=True)
-        self.quantActCtrl =  STEController(STEController.getSteModules(self))
+                                           clear_optim_state_on_step=True)
+        self.quantActCtrl =  STEController(STEController.get_ste_modules(self.CNNLayers))
     
     def FixClassifierTernary(self):
         for i in self.HardClassifier:
@@ -215,17 +205,17 @@ class HardDense_Model(torch.nn.Module):
 
     def CreateCNN(self):
         cnnlayers = [] 
-        cnnlayers += [ConvBlock(120,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
+        cnnlayers += [ConvBlock(120,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
         cnnlayers += [torch.nn.MaxPool2d(kernel_size=(2,2),stride=(2,2),padding=(0,0))]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
         cnnlayers += [torch.nn.MaxPool2d(kernel_size=(2,2),stride=(2,2),padding=(0,0))]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
         cnnlayers += [torch.nn.MaxPool2d(kernel_size=(2,2),stride=(2,2),padding=(0,0))]
-        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantMonitorEpoch, self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, strategy=self.strategy)]
+        cnnlayers += [ConvBlock(self.channels,self.channels,self.actQuantStartEpoch,quantization=self.quantized, writeback=True, quantizationDepth=self.quantizationDepth, quant_strategy=self.quant_strategy)]
         cnnlayers += [torch.nn.AvgPool2d(kernel_size=(4,4),stride=(4,4),padding=(0,0))]
         return torch.nn.Sequential(*cnnlayers)
     

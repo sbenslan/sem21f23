@@ -29,6 +29,10 @@
 # For documentation on possible parameters, run TNNNet.py --help
 
 import os
+import sys
+
+QuantlabRoot = '../..'
+sys.path.append(QuantlabRoot)
 
 import torch
 import torch.nn as nn
@@ -39,10 +43,11 @@ from torch.utils.tensorboard import SummaryWriter
 import argparse
 
 from tqdm import tqdm
-import quantlab_lr_schedulers
-from quantlab_indiv import Controller
-from quantlab_indiv.inq_ops import INQController, INQLinear, INQConv2d
-from quantlab_indiv.ste_ops import STEController, STEActivation
+import quantlab
+
+from quantlab.algorithms.ste import STEController, STEActivation
+from quantlab.algorithms.inq import INQController, INQLinear, INQConv2d
+from quantlab.algorithms.controller import *
 
 from keras.utils.np_utils import to_categorical
 
@@ -52,6 +57,8 @@ from TNNUtils import *
 from tensorboard import program
 
 import numpy as np
+
+QuantlabRoot = '../..'
 
 # For now this is hardcoded -- might be nice to move to config file
 initLR = 1e-2
@@ -234,12 +241,11 @@ if __name__=='__main__':
     parser.add_argument('-t', metavar='Training', dest='training', type=str2bool, const=True, default=True, nargs='?', help='Set whether to Train(default) or Test')
     parser.add_argument('-s', metavar='Sessionname', dest='session_name', type=str, default=session_name, help='Set the session name for logging purposes')
     parser.add_argument('-e', metavar='NumberOfEpochs', dest='num_epochs', type=int, default=num_epochs, help='Set the number of training epochs\n')
-    parser.add_argument('-m', metavar='MonitoringEpoch', dest='mon_epoch', type=int, default=10, help='Set the monitoring epoch\n')
     parser.add_argument('-S', metavar='StartEpoch', dest='start_epoch', type=int, default=11, help='Set the activation quantization start epoch\n')
     parser.add_argument('-H', metavar='HardClassifier', dest='hardclass', type=str2bool, const=True, default=True, nargs='?', help='Set whether to use a fixed classifier(default) or trainable')
     parser.add_argument('-q', metavar='QuantizedTraining', dest='quantized', type=str2bool, const=True, default=True, nargs='?', help='Set whether to train quantized(default) or full-precision')
     parser.add_argument('-d', metavar='QuantizationDepth', dest='quantdepth', type=int, default=3, help='Set the quantization depth, i.e. number of possible values per weight\n')
-    parser.add_argument('-Q', metavar='QuantizationStrategy', dest='strategy', type=str, default='magnitude', help='Set the quantization strategy')
+    parser.add_argument('-Q', metavar='QuantizationStrategy', dest='quant_strategy', type=str, default='magnitude', help='Set the quantization strategy')
     parser.add_argument('-w', metavar='WeightDecay', dest='weightdecay', type=float, default=0, help='Set the weight_decay / L2 regularizer')
     parser.add_argument('-L', metavar='L1-Regularizer', dest='reg', type=float, default=0, help='Set the LASSO / L1 regularizer')
     parser.add_argument('-G', metavar='GradientMap', dest='gradmap', type=str2bool, const=True, default=True, nargs='?', help='Return gradient map after testing')
@@ -249,13 +255,12 @@ if __name__=='__main__':
     print(args)
     
     actQuantStartEpoch = args.start_epoch
-    actQuantMonitorEpoch = args.mon_epoch
     transform_train, transform_test = pre_processing(args.binary_thermometer)
 
     # Use CIFAR-10 dataset
-    dataset = torchvision.datasets.CIFAR10(root='./datasets', train=True, download=True, transform=transform_train)
+    dataset = torchvision.datasets.CIFAR10(root=f'{QuantlabRoot}/datasets', train=True, download=True, transform=transform_train)
     traindataset, valdataset = torch.utils.data.random_split(dataset, [int(len(dataset)*0.8), len(dataset)-int(len(dataset)*0.8)])
-    testdataset = torchvision.datasets.CIFAR10(root='./datasets', train=False, download=True, transform=transform_test)
+    testdataset = torchvision.datasets.CIFAR10(root=f'{QuantlabRoot}/datasets', train=False, download=True, transform=transform_test)
 
     # Define dataloaders
     trainloader = torch.utils.data.DataLoader(traindataset, batch_size = args.batch, shuffle=True, num_workers=8, pin_memory=True)
@@ -264,7 +269,7 @@ if __name__=='__main__':
 
     if(args.training == True):
         
-        net = HardDense_Model(args.channels, 10, actQuantMonitorEpoch, actQuantStartEpoch, weightQuantSchedule, args.hardclass, args.quantized, quantizationDepth=args.quantdepth, strategy=args.strategy, channels=args.channels)
+        net = HardDense_Model(args.channels, 10, actQuantStartEpoch, weightQuantSchedule, args.hardclass, args.quantized, quantizationDepth=args.quantdepth, quant_strategy=args.quant_strategy, channels=args.channels)
         
         if(args.hardclass):
             net.FixClassifierTernary()
@@ -275,28 +280,30 @@ if __name__=='__main__':
         net = net.to(device)
         
         #load_ext tensorboard
-        os.makedirs('./logs', exist_ok=True)
-        os.makedirs('./models', exist_ok=True)
+        os.makedirs(f'{QuantlabRoot}/logs', exist_ok=True)
+        os.makedirs(f'{QuantlabRoot}/models', exist_ok=True)
         
         optimizer = torch.optim.Adam(net.parameters(), lr=initLR)
         criterion = torch.nn.CrossEntropyLoss().to(device)
 
-        tboard = SummaryWriter(log_dir=f'logs/{args.session_name}', max_queue=2)
+        tboard = SummaryWriter(log_dir=f'{QuantlabRoot}/logs/{args.session_name}', max_queue=2)
         tboard.add_graph(net, torch.rand(batch_size, 120, 32, 32).to(device))
 
-        quantControllers = Controller.getControllers(net)
+        quantControllers = INQController.get_modules(net)
 
+        print(quantControllers)
+        
         best_err = 10000
         
         for epoch in range(args.num_epochs):
     
             for ctrlr in quantControllers:
-                ctrlr.step_preTraining(epoch, optimizer, tensorboardWriter=tboard)
+                ctrlr.step_pre_training(epoch, optimizer, tb_writer=tboard)
         
             train(net, epoch, trainloader, l1reg=args.reg, l2reg=args.weightdecay, device=device)
     
             for ctrlr in quantControllers:
-                ctrlr.step_preValidation(epoch, tensorboardWriter=tboard)
+                ctrlr.step_pre_validation(epoch, tb_writer=tboard)
     
             val_loss, val_error_rate = validate(net, epoch, validationloader)
 
@@ -308,15 +315,16 @@ if __name__=='__main__':
                     'error_rate': val_error_rate, 
                     'epoch': epoch,
                 }
-                torch.save(state, f'./models/{args.session_name}-ckpt.pth')
+                torch.save(state, f'{QuantlabRoot}/models/{args.session_name}-ckpt.pth')
         
     else:
 
-        net = HardDense_Model(args.channels, 10, None, 0, weightQuantSchedule, args.hardclass, args.quantized, quantizationDepth=args.quantdepth, strategy=args.strategy, channels=args.channels)    
+        net = HardDense_Model(args.channels, 10, 0, weightQuantSchedule, args.hardclass, args.quantized, quantizationDepth=args.quantdepth, quant_strategy=args.quant_strategy, channels=args.channels)    
         net = net.to(device)
 
         criterion = torch.nn.CrossEntropyLoss().to(device)
-        ckpt = torch.load(f'./models/{args.session_name}-ckpt.pth')
+        ckpt = torch.load(f'{QuantlabRoot}/models/{args.session_name}-ckpt.pth')
+        print(ckpt['net'])
         net.load_state_dict(ckpt['net'])
         test(net, testloader)
         if(args.gradmap):
@@ -326,5 +334,5 @@ if __name__=='__main__':
             xhat = torch.autograd.Variable(x[0], requires_grad = True)
             compute_loss(net(xhat.to(device)), x[1].to(device), criterion).backward()
             
-            np.save(f'./{args.session_name}_gradmap.npy', xhat.grad[0].detach().numpy())
+            np.save(f'{QuantlabRoot}/{args.session_name}_gradmap.npy', xhat.grad[0].detach().numpy())
 

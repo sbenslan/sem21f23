@@ -25,6 +25,11 @@
 
 # This file compiles any valid, sequential combination of ConvBlocks and Pooling units 
 
+import sys
+
+QuantlabRoot = '../..'
+sys.path.append(QuantlabRoot)
+
 from TNNNet import *
 from Thermometers import *
 from TNNUtils import *
@@ -52,8 +57,8 @@ def GetActivations(layer, x):
 def GetWeights(layer):
     if(isinstance(layer, FusedConvBlock)):
         layer = layer.convLayer
-        
-    return layer.layers[1].weightFrozen.detach().numpy()
+    print(vars(layer.layers[1]))
+    return layer.layers[1].weight_frozen.detach().numpy()
 
 def GetThresholds(layer):
     global f
@@ -78,10 +83,7 @@ def GetThresholds(layer):
 
             lowerThreshold = (lowerThreshold - bbias[i])*(np.sqrt(bvar[i]+eps)/abs(bweight[i]))+(bmean[i]-lbias[i])
             upperThreshold = (upperThreshold - bbias[i])*(np.sqrt(bvar[i]+eps)/abs(bweight[i]))+(bmean[i]-lbias[i])
-
-            #lowerThreshold = (((lowerThreshold-bbias[i])/bweight[i])*np.sqrt(bvar[i]+eps)+bmean[i]) - lbias[i]
-            #upperThreshold = (((upperThreshold-bbias[i])/bweight[i])*np.sqrt(bvar[i]+eps)+bmean[i]) - lbias[i]
-            
+    
             lowerThreshold = np.int((lowerThreshold/abs(lowerThreshold))*np.ceil(abs(lowerThreshold)))
             upperThreshold = np.int((upperThreshold/abs(upperThreshold))*np.ceil(abs(upperThreshold)))
 
@@ -143,7 +145,6 @@ class NetParser:
     def parse(self, net):
         
         self.netList = self.unrollToExpression(net)
-        print(self.netList)
         layerList = []
         
         while(self.iterator<len(self.netList)):
@@ -179,14 +180,14 @@ if __name__=='__main__':
     parser.add_argument('-H', metavar='HardClassifier', dest='hardclass', type=str2bool, const=True, default=True, nargs='?', help='Set whether to use a fixed classifier(default) or trainable')
     args = parser.parse_args()
 
-    net = HardDense_Model(args.channels, 10, None, 0, weightQuantSchedule, True, True, channels=args.channels)
+    net = HardDense_Model(args.channels, 10, 0, weightQuantSchedule, True, True, channels=args.channels)
     session_name = args.session_name
 
-    ckpt = torch.load(f'./models/{session_name}-ckpt.pth', map_location=device)
+    ckpt = torch.load(f'{QuantlabRoot}/models/{session_name}-ckpt.pth', map_location=device)
     net.load_state_dict(ckpt['net'], strict=False)
 
     transform_train, transform_test = pre_processing(args.binary_thermometer)
-    testdataset = torchvision.datasets.CIFAR10(root='./datasets', train=False, download=True, transform=transform_test)
+    testdataset = torchvision.datasets.CIFAR10(root=f'{QuantlabRoot}/datasets', train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testdataset, batch_size = 128, shuffle=False, num_workers=8, pin_memory=True)
 
     batch = next(iter(testloader))
@@ -198,6 +199,8 @@ if __name__=='__main__':
     parser = NetParser(expressionList)
     FusedList = parser.parse(net)
 
+    print(parser.netList)
+    
     acts = []
     weights = []
     thresholds = []
@@ -217,12 +220,12 @@ if __name__=='__main__':
 
     #print(thresholds)
             
-    os.makedirs(f'./models/{session_name}/', exist_ok=True)
+    os.makedirs(f'{QuantlabRoot}/models/{session_name}/', exist_ok=True)
     
-    np.savez(f'./models/{session_name}/weights.npz',*weights)
-    np.savez(f'./models/{session_name}/acts.npz',*acts)
-    np.savez(f'./models/{session_name}/thresholds.npz',*thresholds)
-    np.savez(f'./models/{session_name}/pooling.npz',*pooling)
+    np.savez(f'{QuantlabRoot}/models/{session_name}/weights.npz',*weights)
+    np.savez(f'{QuantlabRoot}/models/{session_name}/acts.npz',*acts)
+    np.savez(f'{QuantlabRoot}/models/{session_name}/thresholds.npz',*thresholds)
+    np.savez(f'{QuantlabRoot}/models/{session_name}/pooling.npz',*pooling)
 
 
     

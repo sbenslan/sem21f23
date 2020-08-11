@@ -31,12 +31,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import sys
+
+QuantlabRoot = '../..'
+sys.path.append(QuantlabRoot)
+
+
 from Thermometers import *
 from TNNUtils import *
-#from TNNNet import *
-#from TNNExtract import *
 
-import sys
 import random
 import numpy as np
 from collections import namedtuple
@@ -44,8 +47,6 @@ from io import StringIO
 import argparse
 from tqdm import tqdm
 import json
-
-import sys
 
 accelStimuliPath = '/usr/scratch/fenga6/scheremo/tnn-accel/stimuli'
 sys.path.insert(1,accelStimuliPath)
@@ -549,7 +550,7 @@ if __name__=='__main__':
 
     _weights = []
 
-    weightsnpzfile = np.load(f'./models/{args.session_name}/weights.npz')
+    weightsnpzfile = np.load(f'{QuantlabRoot}/models/{args.session_name}/weights.npz')
     for i in weightsnpzfile.files:
         _weights.append(weightsnpzfile[i])
         
@@ -557,7 +558,7 @@ if __name__=='__main__':
 
     _acts = []
 
-    actsnpzfile = np.load(f'./models/{args.session_name}/acts.npz',allow_pickle=True)
+    actsnpzfile = np.load(f'{QuantlabRoot}/models/{args.session_name}/acts.npz',allow_pickle=True)
     for i in actsnpzfile.files:
         _acts.append(actsnpzfile[i])
         
@@ -565,7 +566,7 @@ if __name__=='__main__':
 
     _pooling = []
 
-    poolingnpzfile = np.load(f'./models/{args.session_name}/pooling.npz',allow_pickle=True)
+    poolingnpzfile = np.load(f'{QuantlabRoot}/models/{args.session_name}/pooling.npz',allow_pickle=True)
     for i in poolingnpzfile.files:
         _pooling.append(poolingnpzfile[i])
         
@@ -573,7 +574,7 @@ if __name__=='__main__':
 
     _thresholds = []
 
-    thresholdsnpzfile = np.load(f'./models/{args.session_name}/thresholds.npz',allow_pickle=True)
+    thresholdsnpzfile = np.load(f'{QuantlabRoot}/models/{args.session_name}/thresholds.npz',allow_pickle=True)
     for i in thresholdsnpzfile.files:
         _thresholds.append(thresholdsnpzfile[i])
         
