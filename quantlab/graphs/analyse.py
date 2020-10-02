@@ -30,7 +30,7 @@ def list_nodes(net, name='', verbose=False):
             if verbose:
                 print(node)
         else:
-            m_nodes = list_nodes(m, name=name+n+'.')
+            m_nodes = list_nodes(m, name=name+n+'.', verbose=verbose)
             net_nodes.extend(m_nodes)
     return net_nodes
 
