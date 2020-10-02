@@ -78,13 +78,14 @@ class Logbook(object):
             verbose (bool): Whether status messages should be printed.
 
         """
-        # get process information
+        # HW + OS information
         self.hw_cfg        = None
         self.sw_cfg        = None
         self.is_master     = None
         self.verbose       = None
         self._whoami(verbose)
-        # get experiment general information
+
+        # experiment general information
         self.problem       = problem
         self.topology      = topology
         self.lib           = importlib.import_module('.'.join(['problems', self.problem, self.topology]))
@@ -93,22 +94,27 @@ class Logbook(object):
         self.config        = None
         self._setup_experiment(exp_id)
 
-        # experiment status
+        # experiment state
         self.i_fold        = None
+        self.i_epoch       = None
+        self.metrics       = None
+
         # logging instrumentation
         self.dir_saves     = None
         self.dir_stats     = None
         self.writer        = None
-        self.i_epoch       = None
         self.meter         = None
-        self.metrics       = None
         self.target_metric = None
 
     def _whoami(self, verbose):
+
+        # machine configuration (HW)
         hw_cfg = {
             'n_cpus': mp.cpu_count(),
             'n_gpus': torch.cuda.device_count() if torch.cuda.is_available() else 0
         }
+
+        # MPI configuration (process information)
         sw_cfg = {
             'global_size': hvd.size(),
             'global_rank': hvd.rank(),
@@ -116,11 +122,16 @@ class Logbook(object):
             'local_rank':  hvd.local_rank(),
             'master_rank': __MASTER_PROC_RANK__
         }
-        assert sw_cfg['local_size'] <= hw_cfg['n_cpus']  # maximum one process per core
-        assert hw_cfg['n_gpus'] <= hw_cfg['n_cpus']        # maximum one GPU per core
+
+        # primitive "load balancing check"
+        assert sw_cfg['local_size'] <= hw_cfg['n_cpus']  # each process should run on a different CPU
+        assert hw_cfg['n_gpus'] <= hw_cfg['n_cpus']      # each GPU (device) should interact with a worker CPU (host)
         if hw_cfg['n_gpus'] > 0:
-            assert sw_cfg['local_size'] <= hw_cfg['n_gpus']  # maximum one process per GPU
-            torch.cuda.set_device(sw_cfg['local_rank'])      # if node is equipped with GPUs, each process should be pinned to one
+            assert sw_cfg['local_size'] <= hw_cfg['n_gpus']  # each process should be assigned a different GPU
+
+        # if possible, assign me a GPU
+        if hw_cfg['n_gpus'] > 0:
+            torch.cuda.set_device(sw_cfg['local_rank'])
             device = torch.cuda.current_device()
         else:
             device = torch.device('cpu')
@@ -138,31 +149,38 @@ class Logbook(object):
             exp_id (str): The decimal literal identifying the experiment.
 
         """
+
         if self.is_master:
-            QUANT_HOME = sys.path[0]
+
+            QUANTLAB_HOME = sys.path[0]  # QuantLab should be invoked from `main.py`'s directory
+
             # get pointers to HARD SHARED resources
-            HARD_STORAGE = os.path.join(QUANT_HOME, 'cfg', 'hard_storage.json')
-            with open(HARD_STORAGE, 'r') as fp:
+            HARD_STORAGE_FILE = os.path.join(QUANTLAB_HOME, 'cfg', 'hard_storage.json')
+            with open(HARD_STORAGE_FILE, 'r') as fp:
                 d = json.load(fp)
                 # data
                 HARD_HOME_DATA = os.path.join(d['data'], 'QuantLab')
                 HARD_DIR_DATA = os.path.join(HARD_HOME_DATA, 'problems', self.problem, 'data')
                 if not os.path.isdir(HARD_DIR_DATA):
                     raise FileNotFoundError('{} hard directory (data) not found: {}'.format(self.problem, HARD_DIR_DATA))
-                # log
+                # logs
                 HARD_HOME_LOGS = os.path.join(d['logs'], 'QuantLab')
                 HARD_DIR_LOGS = os.path.join(HARD_HOME_LOGS, 'problems', self.problem, 'logs')
                 if not os.path.isdir(HARD_DIR_LOGS):
                     raise FileNotFoundError('{} hard directory (logs) not found: {}'.format(self.problem, HARD_DIR_LOGS))
+
             # get pointers to SOFT SHARED resources (which are redirected to HARD ones using symlinks)
-            DIR_PROBLEM = os.path.join(QUANT_HOME, 'problems', self.problem)
+            DIR_PROBLEM = os.path.join(QUANTLAB_HOME, 'problems', self.problem)
+            # data
             dir_data = os.path.join(DIR_PROBLEM, 'data')
             if not os.path.isdir(dir_data):
                 os.symlink(HARD_DIR_DATA, dir_data)
+            # logs
             dir_logs = os.path.join(DIR_PROBLEM, 'logs')
             if not os.path.isdir(dir_logs):
                 os.symlink(HARD_DIR_LOGS, dir_logs)
-            # get pointers to PRIVATE experiment resources
+
+            # get pointer to PRIVATE experiment resources
             if exp_id:
                 # retrieve an existing report
                 exp_id = int(exp_id)
@@ -180,29 +198,8 @@ class Logbook(object):
             self.dir_data = dir_data
             self.dir_exp  = dir_exp
 
-            if self.verbose:
-                # print setup message
-                message  = 'EXPERIMENT LOGBOOK\n'
-                message += 'Problem:               {}\n'.format(self.problem)
-                message += 'Network topology:      {}\n'.format(self.topology)
-                message += 'Data directory:        {}\n'.format(self.dir_data)
-                message += 'Experiment directory:  {}\n'.format(self.dir_exp)
-    
-                def print_message(message):
-                    """Print a nice delimiter around a multiline message."""
-                    lines = message.splitlines()
-                    tab_size = 4
-                    width = max(len(l) for l in lines) + tab_size
-                    print('+' + '-' * width + '+')
-                    for l in lines:
-                        print(l)
-                    print('+' + '-' * width + '+')
-    
-                print_message(message)
-
             # load configuration
             private_config_file = os.path.join(self.dir_exp, 'config.json')
-
             if not os.path.isfile(private_config_file):
                 # no configuration in the experiment folder: look for global one
                 shared_config_file = os.path.join(os.path.dirname(self.lib.__file__), 'config.json')
@@ -213,10 +210,11 @@ class Logbook(object):
                 with open(private_config_file, 'r+') as fp:
                     config = json.load(fp)
                     config['experiment']['seed'] = torch.randint(__MAX_SEED__, (1,)).item()
+                    # reset reading head and owerwrite file! (leave out what's left)
                     fp.seek(0)
                     json.dump(config, fp, indent=4)
                     fp.truncate()
-
+            # now there must be a private configuration file!
             with open(private_config_file, 'r') as fp:
                 self.config = json.load(fp)
 
@@ -224,12 +222,33 @@ class Logbook(object):
         self.dir_data = hvd.broadcast_object(self.dir_data, root_rank=__MASTER_PROC_RANK__, name='dir_data')
         self.config = hvd.broadcast_object(self.config, root_rank=__MASTER_PROC_RANK__, name='config')
 
-    def _fold_folder_name(self, i_fold):
-        return 'fold'+str(i_fold).rjust(__ALIGN_CV_FOLDS__, '0')
+        if self.verbose:  # ...then I am also the master process
+            # print setup message
+            message = 'EXPERIMENT LOGBOOK\n'
+            message += 'Problem:               {}\n'.format(self.problem)
+            message += 'Network topology:      {}\n'.format(self.topology)
+            message += 'Data directory:        {}\n'.format(self.dir_data)
+            message += 'Experiment directory:  {}\n'.format(self.dir_exp)
+
+            def print_message(message):
+                """Print a nice delimiter around a multiline message."""
+                lines = message.splitlines()
+                tab_size = 4
+                width = max(len(l) for l in lines) + tab_size
+                print('+' + '-' * width + '+')
+                for l in lines:
+                    print(l)
+                print('+' + '-' * width + '+')
+
+            print_message(message)
+
+    def _fold_dir_name(self, i_fold):
+        return 'fold' + str(i_fold).rjust(__ALIGN_CV_FOLDS__, '0')
 
     def get_training_status(self):
+
         if self.is_master:
-            # which fold should be resumed (i.e., the last)?
+            # which fold should be resumed?
             folds_list = os.listdir(self.dir_exp)
             try:
                 i_fold = max([int(f.replace('fold', '')) for f in folds_list])
@@ -241,14 +260,15 @@ class Logbook(object):
         self.i_fold = hvd.broadcast_object(self.i_fold, root_rank=__MASTER_PROC_RANK__, name='i_fold')
 
     def open_fold(self):
+
         if self.is_master:
 
             # get fold directory
-            dir_fold = os.path.join(self.dir_exp, self._fold_folder_name(self.i_fold))
+            dir_fold = os.path.join(self.dir_exp, self._fold_dir_name(self.i_fold))
             if not os.path.isdir(dir_fold):
                 os.mkdir(dir_fold)
 
-            # get directories for fold checkpoints and logs
+            # get directories for the current fold's checkpoints and logs
             dir_saves = os.path.join(dir_fold, 'saves')
             if not os.path.isdir(dir_saves):
                 os.mkdir(dir_saves)
@@ -274,16 +294,21 @@ class Logbook(object):
         assert self.target_metric in self.metrics.keys()
 
     def close_fold(self):
+
         if self.is_master:
+
             self.writer.close()
             if self.verbose:
                 print('Fold [{}/{}] completed'.format(self.i_fold + 1, self.config['experiment']['n_folds']))
+
+            # move on to next fold!
             self.i_fold += 1
 
-        # communicate current fold to worker processes
+        # communicate new fold to worker processes
         self.i_fold = hvd.broadcast_object(self.i_fold, root_rank=__MASTER_PROC_RANK__, name='i_fold_new')
 
     def is_better(self, stats):
+
         if self.target_metric.endswith('loss'):
             # loss has decreased
             is_better = stats[self.target_metric] < self.metrics[self.target_metric]
@@ -297,6 +322,7 @@ class Logbook(object):
         return is_better
 
     def load_checkpoint(self, net, opt, lr_sched, ctrls, load):
+
         if self.is_master:
 
             self.i_epoch = 0
@@ -333,7 +359,6 @@ class Logbook(object):
 
         # broadcast experiment status to worker processes
         self.i_epoch = hvd.broadcast_object(self.i_epoch, root_rank=__MASTER_PROC_RANK__, name='i_epoch')
-
         self.metrics = hvd.broadcast_object(self.metrics, root_rank=__MASTER_PROC_RANK__, name='metrics')
 
         hvd.broadcast_parameters(net.state_dict(), root_rank=__MASTER_PROC_RANK__)
