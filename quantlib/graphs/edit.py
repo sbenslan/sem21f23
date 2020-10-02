@@ -1,7 +1,7 @@
 import torch.nn as nn
 from collections import OrderedDict
 
-import quantlab.algorithms as algo
+import quantlib.algorithms as qa
 from .analyse import list_nodes
 
 
@@ -55,7 +55,7 @@ def add_after_conv2d_per_ch_affine(net, nodes_set):
 
 def add_before_linear_ste(net, nodes_set, num_levels, quant_start_epoch=0):
     for n, _ in nodes_set:
-        ste_node = algo.ste.STEActivation(num_levels=num_levels, quant_start_epoch=quant_start_epoch)
+        ste_node = qa.ste.STEActivation(num_levels=num_levels, quant_start_epoch=quant_start_epoch)
         m = _get_node(net, n)
         _replace_node(net, n, nn.Sequential(OrderedDict([('ste', ste_node), ('conv', m)])))
 
@@ -72,7 +72,7 @@ def replace_linear_inq(net, nodes_set, num_levels, quant_init_method=None, quant
             in_features = m.in_features
             out_features = m.out_features
             bias = m.bias
-            inq_node = algo.inq.INQLinear(in_features, out_features, bias=bias,
+            inq_node = qa.inq.INQLinear(in_features, out_features, bias=bias,
                                           num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy)
         elif m_type.startswith('Conv'):
             in_channels = m.in_channels
@@ -84,10 +84,10 @@ def replace_linear_inq(net, nodes_set, num_levels, quant_init_method=None, quant
             groups = m.groups
             bias = m.bias
             if m_type == 'Conv1d':
-                inq_node = algo.inq.INQConv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
+                inq_node = qa.inq.INQConv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
                                               num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy)
             if m_type == 'Conv2d':
-                inq_node = algo.inq.INQConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
+                inq_node = qa.inq.INQConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
                                               num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy)
             if m_type == 'Conv3d':
                 raise NotImplementedError
