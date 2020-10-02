@@ -91,9 +91,10 @@ def export_converter_reqs(experiment_desc, dir_target):
     Export the information needed by the PyTorch-2-Caffe conversion tool.
     """
     def _python_touch():
+        topology = experiment_desc.topology
         init_file = os.path.join(dir_target, '__init__.py')
         with open(init_file, 'w') as fp:
-            os.utime(init_file, None)
+            fp.write("from .{} import {}\n".format(topology.lower, topology))
 
     try:
         os.makedirs(dir_target, exist_ok=False)
