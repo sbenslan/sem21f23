@@ -14,7 +14,7 @@
     "network": {
         "class": "ResNet",
         "params": {
-            "layers": [2, 2, 2, 2],
+            "layers": "ResNet26",
             "socket3x3": true
         },
         "quantize": {
