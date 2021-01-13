@@ -2,13 +2,13 @@ import torch
 from scipy.stats import logistic
 
 
-def forward(x_in, t, q, s_for, training):
+def forward(x_in, q, t, fmu, fsigma, training):
 
     t_shape = [t.numel()] + [1 for _ in range(x_in.dim())]
-    x_minus_t = x_in - t.reshape(t_shape)
+    x_minus_t = x_in - t.reshape(t_shape) - fmu
 
-    if training and s_for != 0.:
-        cdf = logistic.cdf(x_minus_t, 0.0, s_for)
+    if training and fsigma != 0.:
+        cdf = logistic.cdf(x_minus_t, 0.0, fsigma)
     else:
         cdf = (x_minus_t >= 0.0).float()
 
@@ -18,13 +18,13 @@ def forward(x_in, t, q, s_for, training):
     return x_out
 
 
-def backward(grad_in, x_in, t, q, s_back):
+def backward(grad_in, x_in, q, t, bmu, bsigma):
 
     t_shape = [t.numel()] + [1 for _ in range(x_in.dim())]
-    x_minus_t = x_in - t.reshape(t_shape)
+    x_minus_t = x_in - t.reshape(t_shape) - bmu
 
-    if s_back != 0.:
-        pdf = logistic.pdf(x_minus_t, 0.0, s_back)
+    if bsigma != 0.:
+        pdf = logistic.pdf(x_minus_t, 0.0, bsigma)
     else:
         pdf = torch.zeros_like(x_minus_t)
 

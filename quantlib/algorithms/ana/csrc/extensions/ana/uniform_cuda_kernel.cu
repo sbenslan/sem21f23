@@ -13,17 +13,18 @@
 #define CLAMP_0_1(x) ((x > 1.0f) ? 1.0f : ((x < 0.0f) ?  0.0f : x))
 
 
-// GPU kernels (vanilla)
+// definitions of CUDA kernels (executed on: GPU)
 
 template <typename scalar_t>
 __global__ void uniform_forward_cuda_kernel(
     scalar_t * const __restrict__ x_out,
     const scalar_t * __restrict__ x_in,
     const int64_t len_x,
+    const scalar_t * __restrict__ q,
     const scalar_t * __restrict__ t,
     const int64_t len_t,
-    const scalar_t * __restrict__ q,
-    const scalar_t * __restrict__ s_for,
+    const scalar_t * __restrict__ fmu,
+    const scalar_t * __restrict__ fsigma,
     const scalar_t * __restrict__ training
 )
 {
@@ -35,14 +36,14 @@ __global__ void uniform_forward_cuda_kernel(
         for (int it = 0; it < len_t; ++it)
         {
             // input position relative to the threshold
-            float x_minus_t  = x_in[ix] - t[it];
+            float x_minus_t  = x_in[ix] - t[it] - *fmu;
 
             // expected value of the Heaviside function is the CDF of the uniform distribution
             float cdf;
-            if (training && (*s_for != 0.0f))
+            if (*training && (*fsigma != 0.0f))
             {
-                float s_inv = 1.0f / (*s_for);
-                cdf = CLAMP_0_1((0.5f * x_minus_t) * s_inv + 0.5f);
+                float sigma_inv = 1.0f / (*fsigma);
+                cdf = CLAMP_0_1((0.5f * x_minus_t) * sigma_inv + 0.5f);
             }
             else
             {
@@ -69,10 +70,11 @@ __global__ void uniform_backward_cuda_kernel(
     const scalar_t * __restrict__ grad_in,
     const scalar_t * __restrict__ x_in,
     const int64_t len_x,
+    const scalar_t * __restrict__ q,
     const scalar_t * __restrict__ t,
     const int64_t len_t,
-    const scalar_t * __restrict__ q,
-    const scalar_t * __restrict__ s_back
+    const scalar_t * __restrict__ bmu,
+    const scalar_t * __restrict__ bsigma
 )
 {
     int ix = blockIdx.x * blockDim.x + threadIdx.x;
@@ -83,15 +85,15 @@ __global__ void uniform_backward_cuda_kernel(
         for (int it = 0; it < len_t; ++it)
         {
             // input position relative to the threshold
-            float x_minus_t = x_in[ix] - t[it];
+            float x_minus_t = x_in[ix] - t[it] - *bmu;
 
             // the derivative of the expected (i.e., regularised) step function is the PDF of the uniform distribution
             float pdf;
-            if (*s_back != 0.0f)
+            if (*bsigma != 0.0f)
             {
-                float s_inv = 1.0f / (*s_back);
-                float local_derivative = (float) (ABS(x_minus_t) <= (*s_back));
-                pdf = 0.5f * s_inv * local_derivative;
+                float sigma_inv = 1.0f / (*bsigma);
+                float local_derivative = (float) (ABS(x_minus_t) <= (*bsigma));
+                pdf = 0.5f * sigma_inv * local_derivative;
             }
             else
             {
@@ -113,20 +115,23 @@ __global__ void uniform_backward_cuda_kernel(
 }
 
 
-// dispatchers
+// definitions of C++\CUDA interface (executed on: CPU)
+// goals:
+//   * allocate GPU memory for the output;
+//   * define the parameters for the GPU kernel;
+//   * call the kernel;
 
 torch::Tensor uniform_forward_cuda_dispatch(
     torch::Tensor x_in,
-    torch::Tensor t,
     torch::Tensor q,
-    torch::Tensor s_for,
+    torch::Tensor t,
+    torch::Tensor fmu,
+    torch::Tensor fsigma,
     torch::Tensor training
 )
 {
     auto x_out = torch::zeros_like(x_in);
-    auto len_x = x_in.numel();
-
-    const dim3 blocks((len_x + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
+    const dim3 blocks((x_in.numel() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
 
     AT_DISPATCH_FLOATING_TYPES(
         x_in.type(),
@@ -135,11 +140,12 @@ torch::Tensor uniform_forward_cuda_dispatch(
             uniform_forward_cuda_kernel<scalar_t><<<blocks, THREADS_PER_BLOCK>>>(
                 x_out.data_ptr<scalar_t>(),
                 x_in.data_ptr<scalar_t>(),
-                len_x,
+                x_in.numel(),
+                q.data_ptr<scalar_t>(),
                 t.data_ptr<scalar_t>(),
                 t.numel(),
-                q.data_ptr<scalar_t>(),
-                s_for.data_ptr<scalar_t>(),
+                fmu.data_ptr<scalar_t>(),
+                fsigma.data_ptr<scalar_t>(),
                 training.data_ptr<scalar_t>()
             );
         })
@@ -152,15 +158,14 @@ torch::Tensor uniform_forward_cuda_dispatch(
 torch::Tensor uniform_backward_cuda_dispatch(
     torch::Tensor grad_in,
     torch::Tensor x_in,
-    torch::Tensor t,
     torch::Tensor q,
-    torch::Tensor s_back
+    torch::Tensor t,
+    torch::Tensor bmu,
+    torch::Tensor bsigma
 )
 {
     auto grad_out = torch::zeros_like(x_in);
-    auto len_x = x_in.numel();
-
-    const dim3 blocks((len_x + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
+    const dim3 blocks((x_in.numel() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
 
     AT_DISPATCH_FLOATING_TYPES(
         x_in.type(),
@@ -170,11 +175,12 @@ torch::Tensor uniform_backward_cuda_dispatch(
                 grad_out.data_ptr<scalar_t>(),
                 grad_in.data_ptr<scalar_t>(),
                 x_in.data_ptr<scalar_t>(),
-                len_x,
+                x_in.numel(),
+                q.data_ptr<scalar_t>(),
                 t.data_ptr<scalar_t>(),
                 t.numel(),
-                q.data_ptr<scalar_t>(),
-                s_back.data_ptr<scalar_t>()
+                bmu.data_ptr<scalar_t>(),
+                bsigma.data_ptr<scalar_t>()
             );
         })
     );

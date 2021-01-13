@@ -1,13 +1,13 @@
 import torch
 
 
-def forward(x_in, t, q, s_for, training):
+def forward(x_in, q, t, fmu, fsigma, training):
 
     t_shape = [t.numel()] + [1 for _ in range(x_in.dim())]
-    x_minus_t = x_in - t.reshape(t_shape)
+    x_minus_t = x_in - t.reshape(t_shape) - fmu
 
-    if training and s_for != 0.:
-        x_minus_t_over_s = torch.abs(x_minus_t / s_for)
+    if training and fsigma != 0.:
+        x_minus_t_over_s = torch.abs(x_minus_t / fsigma)
         cdf_temp = (torch.sign(x_minus_t) * x_minus_t_over_s * (2 - x_minus_t_over_s) + 1) / 2
         cond = (x_minus_t_over_s <= 1.)
         cdf = torch.zeros_like(x_minus_t)
@@ -22,14 +22,14 @@ def forward(x_in, t, q, s_for, training):
     return x_out
 
 
-def backward(grad_in, x_in, t, q, s_back):
+def backward(grad_in, x_in, q, t, bmu, bsigma):
 
     t_shape = [t.numel()] + [1 for _ in range(x_in.dim())]
-    x_minus_t = x_in - t.reshape(t_shape)
+    x_minus_t = x_in - t.reshape(t_shape) - bmu
 
-    if s_back != 0.:
-        x_minus_t_over_s = torch.abs(x_minus_t / s_back)
-        pdf = torch.max(torch.tensor([0.]), 1 - x_minus_t_over_s) / s_back
+    if bsigma != 0.:
+        x_minus_t_over_s = torch.abs(x_minus_t / bsigma)
+        pdf = torch.max(torch.tensor([0.]), 1 - x_minus_t_over_s) / bsigma
     else:
         pdf = torch.zeros_like(x_minus_t)
 

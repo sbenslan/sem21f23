@@ -2,22 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 
 
-def generate_stair_function(qmin=-1, qmax=1, n_bits=2):
-
-    assert n_bits > 0
-    n_levels = 2 ** n_bits - 1 if n_bits > 1 else 2 ** n_bits  # symmetric stair_function
-    n_jumps = n_levels - 1
-
-    q = torch.linspace(qmin, qmax, n_levels)
-
-    delta_t = qmax - qmin
-    step_t = delta_t / n_jumps
-    t = (torch.linspace(qmin, qmax, n_levels) + (step_t / 2))[:-1]
-
-    return t, q
-
-
-def generate_inputs(N, q, distribution='Dirac', n_iters=10, is_cuda=False):
+def generate_inputs(N, q, eps, distribution='Dirac', n_iters=10, is_cuda=False):
     """Generate inputs for the specific to the function to be tested.
 
     Args:
@@ -42,8 +27,8 @@ def generate_inputs(N, q, distribution='Dirac', n_iters=10, is_cuda=False):
     ## ANA parameters are defined here ##
     #####################################
     # parameters of the stair function
-    qmin = torch.min(q)
-    qmax = torch.max(q)
+    qmin = torch.min(q * eps)
+    qmax = torch.max(q * eps)
     assert (qmin < qmax)  # function must be increasing
     #####################################
 
@@ -105,11 +90,11 @@ def measure(anamod, forward_inputs, backward_inputs, n_iters=10):
 def profile(anamod, N=tuple([10**i for i in range(3, 6)]), n_iters=10):
     import numpy as np
 
-    print("Performance report for {} version".format('GPU' if anamod.stddev.is_cuda else 'CPU'))
+    print("Performance report for {} version".format('GPU' if anamod.fnoise.sigma.is_cuda else 'CPU'))
     print("Input size \t Forward \t\t\t\t\t\t | Backward")
 
     for input_size in N:
-        forward_inputs, backward_inputs = generate_inputs(input_size, anamod.quant_levels.data, distribution='Dirac', n_iters=n_iters, is_cuda=anamod.stddev.data.is_cuda)
+        forward_inputs, backward_inputs = generate_inputs(input_size, anamod.quant_levels.data, anamod.eps.data, distribution='Dirac', n_iters=n_iters, is_cuda=anamod.fnoise.sigma.data.is_cuda)
 
         forward_perf, backward_perf = measure(anamod, forward_inputs, backward_inputs, n_iters=n_iters)
 
@@ -128,8 +113,8 @@ def check_functional_equivalence(anamod_gpu, anamod_cpu, tolerance=1e-6):
 
     print("Functional equivalence check - Admitted tolerance: {}".format(tolerance))
 
-    forward_inputs_gpu, backward_inputs_gpu = generate_inputs(10**4, anamod_gpu.quant_levels.data, distribution='Dirac', is_cuda=anamod_gpu.stddev.is_cuda)
-    forward_inputs_cpu, backward_inputs_cpu = generate_inputs(10**4, anamod_cpu.quant_levels.data, distribution='Dirac', is_cuda=anamod_cpu.stddev.is_cuda)
+    forward_inputs_gpu, backward_inputs_gpu = generate_inputs(10**4, anamod_gpu.quant_levels.data, anamod_gpu.eps.data, distribution='Dirac', is_cuda=anamod_gpu.fnoise.sigma.is_cuda)
+    forward_inputs_cpu, backward_inputs_cpu = generate_inputs(10**4, anamod_cpu.quant_levels.data, anamod_cpu.eps.data, distribution='Dirac', is_cuda=anamod_cpu.fnoise.sigma.is_cuda)
 
     forward_inputs_gpu.requires_grad = True
     x_in_gpu = forward_inputs_gpu
@@ -160,7 +145,7 @@ def check_functional_equivalence(anamod_gpu, anamod_cpu, tolerance=1e-6):
 def show(anamod):
     """Show the graphics of an activation function and its derivative."""
 
-    _input_for, _input_back = generate_inputs(10**4, anamod.quant_levels.data, is_cuda=anamod.stddev.data.is_cuda)
+    _input_for, _input_back = generate_inputs(10**4, anamod.quant_levels.data, anamod.eps.data, is_cuda=anamod.fnoise.sigma.data.is_cuda)
 
     _input_for.requires_grad = True
     x_in = _input_for
@@ -173,20 +158,23 @@ def show(anamod):
     axbackward.scatter(x_in.cpu().detach().numpy(), x_in.grad.cpu().detach().numpy(), c='r', s=ps)
 
 
-def get_ana_module(module_dict, noise_type, t, q, s, cuda=False):
+def get_ana_module(module_dict, quantizer_spec, noise_type,
+                   fmu, fsigma, bmu, bsigma,
+                   cuda=False):
 
-    anamod = module_dict['ANAActivation'](noise_type, t, q)
-    anamod.set_stddev(s)
+    anamod = module_dict['ANAActivation'](quantizer_spec, noise_type)
+    anamod.set_fnoise(fmu, fsigma)
+    anamod.set_bnoise(bmu, bsigma)
     if cuda:
         anamod.cuda()
 
     return anamod
 
 
-def test_noise(module_dict, noise_type, t, q, s):
+def test_noise(module_dict, quantizer_spec, noise_type, fmu, fsigma, bmu, bsigma):
 
-    anamod_cpu = get_ana_module(module_dict, noise_type, t, q, s)
-    anamod_gpu = get_ana_module(module_dict, noise_type, t, q, s, cuda=True)
+    anamod_cpu = get_ana_module(module_dict, quantizer_spec, noise_type, fmu, fsigma, bmu, bsigma)
+    anamod_gpu = get_ana_module(module_dict, quantizer_spec, noise_type, fmu, fsigma, bmu, bsigma, cuda=True)
 
     show(anamod_cpu)
     show(anamod_gpu)
@@ -197,12 +185,17 @@ def test_noise(module_dict, noise_type, t, q, s):
     profile(anamod_gpu)
 
 
-def test(module_dict, qmin=-127., qmax=127., n_bits=8, stddev_for=1.0, stddev_back=1.0):
+def test(module_dict, nbits=2, signed=True, balanced=True, eps=1.0,
+         fmu=0.0, fsigma=1.0, bmu=0.0, bsigma=1.0):
 
-    t, q = generate_stair_function(qmin=qmin, qmax=qmax, n_bits=n_bits)
-    s = torch.Tensor([stddev_for, stddev_back])
+    quantizer_spec = {
+        'nbits': nbits,
+        'signed': signed,
+        'balanced': balanced,
+        'eps': eps
+    }
 
     for noise_type in ['uniform', 'triangular', 'normal', 'logistic']:
         print("Noise type: {}".format(noise_type.upper()))
-        test_noise(module_dict, noise_type, t, q, s)
+        test_noise(module_dict, quantizer_spec, noise_type, fmu, fsigma, bmu, bsigma)
         print("\n")

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.nn.modules.utils import _single, _pair, _triple
 
 import math
+from collections import namedtuple
 
 from . import ana_lib
 
@@ -15,6 +16,9 @@ __all__ = [
     'ANAConv2d',
     'ANAConv3d',
 ]
+
+
+Noise = namedtuple('Noise', ['mu', 'sigma'])
 
 
 class ANAModule(nn.Module):
@@ -34,7 +38,7 @@ class ANAModule(nn.Module):
         """
 
         # quantization levels
-        quant_levels = torch.arange(0, 2 ** quantizer_spec['nbits'])
+        quant_levels = torch.arange(0, 2 ** quantizer_spec['nbits']).to(dtype=torch.float32)
         if quantizer_spec['signed']:
             quant_levels = quant_levels - 2 ** (quantizer_spec['nbits'] - 1)
             if quantizer_spec['balanced']:
@@ -55,36 +59,40 @@ class ANAModule(nn.Module):
         # noise type
         anamod.ana_op = getattr(ana_lib, 'ANA' + noise_type.capitalize()).apply
 
-        # forward noise parameters
+        # initialise forward noise parameters
         anamod.register_parameter('fmu', nn.Parameter(torch.zeros(1), requires_grad=False))
         anamod.register_parameter('fsigma', nn.Parameter(torch.ones(1), requires_grad=False))
+        anamod.fnoise = Noise(mu=anamod.fmu, sigma=anamod.fsigma)
 
-        # backward noise parameters
+        # initialise backward noise parameters
         anamod.register_parameter('bmu', nn.Parameter(torch.zeros(1), requires_grad=False))
         anamod.register_parameter('bsigma', nn.Parameter(torch.ones(1), requires_grad=False))
+        anamod.bnoise = Noise(mu=anamod.bmu, sigma=anamod.bsigma)
 
 
-class ANAActivation(nn.Module):
+class ANAActivation(ANAModule):
     """Quantize scores."""
-    def __init__(self, noise_type, thresholds, quant_levels):
-        super(ANAActivation, self).__init__()
-        # set stochastic properties
-        self.ana_op = getattr(ana_lib, 'ANA' + noise_type.capitalize()).apply
-        super(ANAActivation, self).register_parameter('thresholds',
-                                                      nn.Parameter(torch.Tensor(thresholds),
-                                                      requires_grad=False))
-        super(ANAActivation, self).register_parameter('quant_levels',
-                                                      nn.Parameter(torch.Tensor(quant_levels),
-                                                      requires_grad=False))
-        super(ANAActivation, self).register_parameter('stddev',
-                                                      nn.Parameter(torch.Tensor(torch.ones(2)),
-                                                      requires_grad=False))
+    def __init__(self, quantizer_spec, noise_type):
+        super(ANAActivation, self).__init__(quantizer_spec, noise_type)
 
-    def set_stddev(self, stddev):
-        self.stddev.data = torch.Tensor(stddev).to(self.stddev)
+    def set_fnoise(self, mu, sigma):
+        self.fnoise.mu.data = torch.Tensor([mu]).to(self.fnoise.mu)
+        self.fnoise.sigma.data = torch.Tensor([sigma]).to(self.fnoise.sigma)
+
+    def set_bnoise(self, mu, sigma):
+        self.bnoise.mu.data = torch.Tensor([mu]).to(self.bnoise.mu)
+        self.bnoise.sigma.data = torch.Tensor([sigma]).to(self.bnoise.sigma)
 
     def forward(self, x):
-        x_out = self.ana_op(x, self.thresholds, self.quant_levels, self.stddev, self.training)
+        x = x / self.eps if self.eps != 1.0 else x
+
+        x_out = self.ana_op(x,
+                            self.quant_levels, self.thresholds,
+                            self.fnoise.mu, self.fnoise.sigma,
+                            self.bnoise.mu, self.bnoise.sigma,
+                            self.training)
+
+        x_out = x_out * self.eps if self.eps != 1.0 else x_out
         return x_out
 
 
