@@ -1,12 +1,13 @@
-# Copyright (c) 2019 ETH Zurich, Lukas Cavigelli
-
 import torch
+import torch.nn as nn
 
 from ..controller import Controller
+from . import ste_lib
 
 
 __all__ = [
     'STEController',
+    'STEActivationNew',
     'STEActivation',
 ]
 
@@ -35,6 +36,73 @@ class STEController(Controller):
     @staticmethod
     def get_ste_modules(nodes_set):
         return [n[1] for n in nodes_set if isinstance(n[1], STEActivation)]
+
+
+class STEModule(torch.nn.Module):
+
+    def __init__(self, quantizer_spec):
+        super(STEModule, self).__init__()
+        STEModule.setup_quantizer(self, quantizer_spec)
+
+    @staticmethod
+    def setup_quantizer(stemod, quantizer_spec):
+
+        eps = torch.Tensor([quantizer_spec['eps']])
+        stemod.register_parameter('eps', nn.Parameter(eps, requires_grad=False))
+
+        quant_levels = torch.arange(0, 2 ** quantizer_spec['n_bits']).to(dtype=torch.float32)
+        if quantizer_spec['signed']:
+            quant_levels = quant_levels - 2 ** (quantizer_spec['n_bits'] - 1)
+            if quantizer_spec['balanced']:
+                quant_levels = quant_levels[1:]
+        q_min = quant_levels[0]
+        q_max = quant_levels[-1]
+        stemod.signed = quantizer_spec['signed']
+        stemod.register_parameter('q_min', nn.Parameter(q_min, requires_grad=False))
+        stemod.register_parameter('q_max', nn.Parameter(q_max, requires_grad=False))
+
+
+class STEActivationNew(STEModule):
+
+    def __init__(self, quantizer_spec, quant_start_epoch=0):
+        super(STEActivationNew, self).__init__(quantizer_spec)
+        self.ste_op = getattr(ste_lib, 'STEActKernel').apply
+        self.register_parameter('m', nn.Parameter(torch.ones(1), requires_grad=False))  # maximum absolute input value (i.e., range)
+
+        assert 0 <= quant_start_epoch
+        self.quant_start_epoch = quant_start_epoch
+        self.is_quantized = (self.quant_start_epoch == 0)
+        self.monitor_epoch = self.quant_start_epoch - 1  # during this epoch, statistics about input tensors range will be collected
+        self.is_monitoring = (self.quant_start_epoch == 1)
+
+    def step(self, epoch):
+
+        if epoch == self.monitor_epoch:
+
+            self.is_monitoring = True
+            self.m.data[0] = 0.0  # initialise range statistic
+
+        elif epoch == self.quant_start_epoch:
+
+            self.is_monitoring = False  # the next epoch, deactivate "monitoring" mode
+            self.eps.data = self.m.data / (self.q_max - self.q_min)  # set quantum
+            if self.signed:
+                self.eps *= 2
+
+            self.is_quantized = True
+
+        elif self.quant_start_epoch < epoch:  # in case of restart; we do not store these variables in the node's state
+            self.is_quantized = True
+
+    def forward(self, x):
+
+        if self.is_monitoring:
+            self.m.data = torch.max(self.m.data[0], torch.max(torch.abs(x)))
+
+        if self.is_quantized:
+            return self.ste_op(x, self.eps, self.q_min, self.q_max)
+        else:
+            return x
 
 
 class STEActivation(torch.nn.Module):
