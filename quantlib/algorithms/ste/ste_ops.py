@@ -2,10 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
-#from ..controller import Controller
-#from . import ste_lib
-import ste_lib
-from itertools import chain
+from ..controller import Controller
+from . import ste_lib
 
 
 __all__ = [
@@ -15,30 +13,30 @@ __all__ = [
 ]
 
 
-# class STEController(Controller):
-#     def __init__(self, modules, clear_optim_state_on_step=False):
-#         super(STEController).__init__()
-#         self.modules = modules
-#         self.clear_optim_state_on_step = clear_optim_state_on_step
+class STEController(Controller):
+    def __init__(self, modules, clear_optim_state_on_step=False):
+        super(STEController).__init__()
+        self.modules = modules
+        self.clear_optim_state_on_step = clear_optim_state_on_step
 
-#     def state_dict(self):
-#         return {k: v for k, v in self.__dict__.items() if k in ()}
+    def state_dict(self):
+        return {k: v for k, v in self.__dict__.items() if k in ()}
 
-#     def load_state_dict(self, state_dict):
-#         self.__dict__.update(state_dict)
+    def load_state_dict(self, state_dict):
+        self.__dict__.update(state_dict)
 
-#     def step_pre_training(self, epoch, optimizer=None, tb_writer=None):
-#         # step each STE module
-#         for m in self.modules:
-#             m.step(epoch)
-#         if (optimizer is not None) and self.clear_optim_state_on_step:
-#             for m in self.modules:
-#                 if m.quant_start_epoch == epoch:
-#                     optimizer.state.clear()  # weight decay?
+    def step_pre_training(self, epoch, optimizer=None, tb_writer=None):
+        # step each STE module
+        for m in self.modules:
+            m.step(epoch)
+        if (optimizer is not None) and self.clear_optim_state_on_step:
+            for m in self.modules:
+                if m.quant_start_epoch == epoch:
+                    optimizer.state.clear()  # weight decay?
 
-#     @staticmethod
-#     def get_ste_modules(nodes_set):
-#         return [n[1] for n in nodes_set if isinstance(n[1], STEActivation)]
+    @staticmethod
+    def get_ste_modules(nodes_set):
+        return [n[1] for n in nodes_set if isinstance(n[1], STEActivation)]
 
 
 class STEModule(torch.nn.Module):
@@ -163,7 +161,6 @@ class STEActivation(torch.nn.Module):
 
 
 
-# TODO
 class _STEBatchNorm(_BatchNorm):
     def __init__(self, ste_modules, start_epoch, num_levels_mult, num_levels_add, step_mult, num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True):
         super(_STEBatchNorm, self).__init__(num_features=num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
