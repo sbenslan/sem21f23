@@ -21,7 +21,10 @@
             "routine": "features_ste_inq",
             "STE": {
                 "n_levels": 255,
-                "quant_start_epoch": 28
+                "quant_start_epoch": 28,
+                "n_levels_bn_add": 255,
+                "n_levels_bn_mult": 268435455,
+                "step_bn_mult": 0.00000762945
             },
             "INQ": {
                 "n_levels": 3,
@@ -75,7 +78,10 @@
                     "50": 0.6,
                     "60": 0.8,
                     "70": 0.9,
-                    "80": 1.0
+                    "80": 0.95,
+                    "90": 0.975,
+                    "100": 0.9875,
+                    "110": 1.0
                 },
                 "clear_optim_state_on_step": true
             }
