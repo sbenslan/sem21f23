@@ -51,9 +51,14 @@ def get_data(logbook):
 def get_network(logbook):
     """Return a network for the experiment and the loss function for training."""
 
-    def get_pretrained_model(url_or_path):
-        """If given URL, will try to download the file at that URL if it does not exist already and return the path to the file. If given a path, will return that path or raise FileNotFound.
-        If the argument is simply a filename without preceding path, the file is assumed to be located in the '<problem>/<topology>/pretrained' folder."""
+    def get_pretrained_model_path(url_or_path):
+        """If given URL, will try to download the file at that URL if it does not exist
+        already and return the path to the file. If given a path, will return
+        that path or raise FileNotFound. If the argument is simply a filename
+        without preceding path, the file is assumed to be located in the
+        '<problem>/<topology>/pretrained' folder.
+
+        """
         #create a "pretrained" folder if it doesn't exist yet
         pretrain_dir = os.path.join(logbook.dir_topology, 'pretrained')
         if not os.path.isdir(pretrain_dir):
@@ -80,6 +85,26 @@ def get_network(logbook):
                 raise FileNotFoundError("Pretrained model not found at '{}'!".format(os.path.abspath(model_path)))
             return model_path
 
+    def convert_state_dict(fn_name, state_dict_pt, state_dict_ql):
+        """The key 'fn_name' is expected to be in logbook.config['network'] and should
+        specify a member of the 'topology' module which takes the state_dict of
+        the pretrained model and that of the equivalent QuantLab model. This
+        function should convert the pretrained state_dict to one compatible
+        with the QuantLab model.
+        """
+
+        # if the fn_name key does not exist in the logbook config
+        try:
+            sd_convert_fn = getattr(logbook.lib, logbook.config['network'][fn_name])
+        except KeyError:
+            return state_dict_pt
+
+        state_dict_converted = state_dict_pt
+
+        if sd_convert_fn is not None:
+            state_dict_converted = sd_convert_fn(state_dict_pt, state_dict_ql)
+
+        return state_dict_converted
 
     # create the network
     net = getattr(logbook.lib, logbook.config['network']['class'])(**logbook.config['network']['params'])
@@ -88,12 +113,15 @@ def get_network(logbook):
     load_unq_pretrained = False
     try:
         model_file = logbook.config['network']['pretrained_unquantized']
-        if model_file is not None:
-            model_path = get_pretrained_model(model_file)
-            net.load_state_dict(torch.load(model_path))
-            load_unq_pretrained = True
     except KeyError:
-        pass
+        model_file = None
+    if model_file is not None:
+        model_path = get_pretrained_model_path(model_file)
+        state_dict_pt = torch.load(model_path)
+        # if required, convert the state_dict
+        state_dict_pt = convert_state_dict('state_dict_conversion_unquantized', state_dict_pt, net.state_dict())
+        net.load_state_dict(state_dict_pt)
+        load_unq_pretrained = True
 
 
     # quantize (if specified)
@@ -104,13 +132,16 @@ def get_network(logbook):
     # if specified, load pretrained checkpoint for quantized network
     try:
         model_file = logbook.config['network']['pretrained_quantized']
-        if model_file is not None:
-            if load_unq_pretrained:
-                print("Warning: Unquantized pretrained model has no effect - quantized pretrained model is specified as well!")
-            model_path = get_pretrained_model(model_file)
-            net.load_state_dict(torch.load(model_path))
     except KeyError:
-        pass
+        model_file = None
+    if model_file is not None:
+        if load_unq_pretrained:
+            print("Warning: Loading of unquantized pretrained weights has no effect - quantized pretrained model is specified as well!")
+            model_path = get_pretrained_model_path(model_file)
+            state_dict_pt = torch.load(model_path)
+            # if required, convert the state_dict
+            state_dict_pt = convert_state_dict('state_dict_conversion_quantized', state_dict_pt, net.state_dict())
+            net.load_state_dict(state_dict_pt)
 
     # move to proper device
     net = net.to(logbook.hw_cfg['device'])
