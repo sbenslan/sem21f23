@@ -13,6 +13,8 @@
     },
     "network": {
         "class": "VGG",
+        "pretrained_unquantized": null,
+        "pretrained_quantized": null,
         "params": {
             "config": "VGG19",
             "bn": true

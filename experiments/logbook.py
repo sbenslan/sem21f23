@@ -138,6 +138,9 @@ class Logbook(object):
             exp_id (str): The decimal literal identifying the experiment.
 
         """
+        # TODO:
+        # this is a inconsistent with the 'cfg/storage.sh' and
+        # 'cfg/problem.sh' scripts. Should be simplified
         if self.is_master:
             QUANT_HOME = sys.path[0]
             # get pointers to HARD SHARED resources
@@ -156,6 +159,10 @@ class Logbook(object):
                     raise FileNotFoundError('{} hard directory (logs) not found: {}'.format(self.problem, HARD_DIR_LOGS))
             # get pointers to SOFT SHARED resources (which are redirected to HARD ones using symlinks)
             DIR_PROBLEM = os.path.join(QUANT_HOME, 'problems', self.problem)
+
+            dir_topology = os.path.join(DIR_PROBLEM, self.topology)
+            self.dir_topology = dir_topology
+
             dir_data = os.path.join(DIR_PROBLEM, 'data')
             if not os.path.isdir(dir_data):
                 os.symlink(HARD_DIR_DATA, dir_data)

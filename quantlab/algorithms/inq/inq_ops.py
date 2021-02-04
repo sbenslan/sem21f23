@@ -59,7 +59,7 @@ class INQController(Controller):
     #     if self.rescale_weights:
     #         for m in self.modules:
     #             m.weight_inq_ctrl.rescale_weights()
-    
+
     @staticmethod
     def get_inq_modules(nodes_set):
         return [n[1] for n in nodes_set if (isinstance(n[1], INQLinear) or isinstance(n[1], INQConv1d) or isinstance(n[1], INQConv2d))]
@@ -71,7 +71,7 @@ class INQNodeController:
     def __init__(self, module, p_name,
                  num_levels=3, quant_init_method=None, quant_strategy="magnitude",  # original 'quant_init_method' was 'uniform-l1-opt'
                  back_compat=True):
-        
+
         self.module = module
 
         self.p_name = p_name  # `string`
@@ -103,11 +103,11 @@ class INQNodeController:
     @property
     def weight(self):
         return self.module.__getattr__(self.p_name)
-    
+
     @property
     def weight_frozen(self):
         return self.module.__getattr__(self.p_name_frozen)
-    
+
     def get_weight_params(self, module):
         weight = module.__getattr__(self.p_name)
         weight_frozen = module.__getattr__(self.p_name_frozen)
@@ -116,7 +116,7 @@ class INQNodeController:
     @property
     def s_param(self):
         return self.module.__getattr__(self.p_name_s)
-    
+
     @property
     def s(self):
         return self.s_param[0].item()
@@ -137,7 +137,7 @@ class INQNodeController:
             min_quant_err[mask] = quant_err[mask]
         quant_weight = best_quant_level
         return quant_weight  # 'min_quant_err' IS NOT RETURNED! DO WE NEED IT?
-    
+
     def inq_step(self, fraction):
         """First, determine quantization levels. Then, quantize given fraction of weights."""
 
@@ -152,7 +152,7 @@ class INQNodeController:
                 quant_levels_neg = (-2**i for i in range(n_2, n_1+1))
                 quant_levels_pos = (2**i for i in range(n_2, n_1+1))
                 quant_levels = itertools.chain(quant_levels_neg, [0], quant_levels_pos)
-            else: 
+            else:
                 assert(self.num_levels == 2)
                 quant_levels = [-self.s/2, self.s/2]  # [-2**n_2, 2**n_2]
         elif self.quant_init_method == 'uniform':
@@ -192,7 +192,7 @@ class INQNodeController:
                     s = 1
                     return s  # 'optim_weight' HAS THE SIDE-EFFECT OF CHANGING 'weight'
                               # WOULD IT NOT BE BETTER REMOVING OUTPUT 's' AND ENSURING STATE CONSISTENCY?
-                
+
                 if self.quant_init_method in ['uniform-l1-opt',
                                               'uniform-l2-opt',
                                               'uniform-linf-opt']:
@@ -236,13 +236,13 @@ class INQNodeController:
             self.weight_frozen.data.flatten()[idx_freeze] = self.inq_quantize(self.weight.data.flatten()[idx_freeze], quant_levels)
         else:
             assert False
-    
+
     def inq_assemble_weight(self, module=None):
-        
+
         # with nn.DataParallel, the module is copied, so self.module cannot be used
         # WAS THE FUNCTION 'get_weight_params' DESIGNED LATER THAN '@property's 'weight' AND 'weigth_frozen'?
         weight, weight_frozen = self.get_weight_params(module)
-        
+
         weight_frozen = weight_frozen.detach()
         idx_frozen = ~torch.isnan(weight_frozen)
         weight_assembled = torch.zeros_like(weight_frozen)
@@ -251,7 +251,7 @@ class INQNodeController:
         weight_full_prec = mask_full_prec * weight
         weight_assembled = weight_assembled + weight_full_prec  # weight_frozen[frozen] + weight[~frozen]
         return weight_assembled
-    
+
     def rescale_weights(self):
         eps = 1e-8  # HARD CODED: MAYBE '__eps__' IS BETTER IDENTIFIER
         self.weight.data.mul_((self.s / 2) / (self.weight.data.abs().mean().item() + eps))
@@ -261,44 +261,65 @@ class INQNodeController:
 # in particular, 'inq_assemble_weight' uses an helper function to assist with 'nn.DataParallel'
 # see comment on line 232
 class INQLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, 
-                 num_levels=3, quant_init_method=None, quant_strategy="magnitude"):
-        
+    def __init__(self, in_features, out_features, bias=True,
+                 num_levels=3, quant_init_method=None, quant_strategy="magnitude", init_weight=None, init_bias=None):
+
         super(INQLinear, self).__init__(in_features, out_features, bias)
         self.weight_inq_ctrl = INQNodeController(self, 'weight',
                                                  num_levels=num_levels,
                                                  quant_init_method=quant_init_method,
                                                  quant_strategy=quant_strategy)
-    
+        if init_weight is not None:
+            assert self.weight.data.shape == init_weight.shape, "Initial weights shape must correspond to {} layer weights: Expected {}, got {}".format(self.__class.__name__, self.weight.data.shape, init_weight.shape)
+            self.weight.data = init_weight.clone()
+
+        if init_bias is not None:
+            if bias == True:
+                assert self.bias.data.shape == init_bias.shape, "Initial bias shape must correspond to {} layer weights: Expected {}, got {}".format(self.__class__.__name__, self.bias.data.shape, init_bias.shape)
+                self.bias.data = init_bias.clone()
+            else:
+                print("Warning: You provided initial values for the bias of {}, but set the 'bias' parameter to False. Bias values are ignored!".format(self.__class__.__name__))
+
     def step(self, fraction):
         self.weight_inq_ctrl.inq_step(fraction)
 
     def forward(self, input):
         weight_assembled = self.weight_inq_ctrl.inq_assemble_weight(self)
         return nn.functional.linear(input, weight_assembled, self.bias)
-    
-    
+
+
 class INQConv1d(nn.Conv1d):
-    def __init__(self, in_channels, out_channels, kernel_size, 
-                 stride=1, padding=0, dilation=1, groups=1, 
-                 bias=True, padding_mode='zeros', 
-                 num_levels=3, quant_init_method=None, quant_strategy="magnitude"):
-        
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 stride=1, padding=0, dilation=1, groups=1,
+                 bias=True, padding_mode='zeros',
+                 num_levels=3, quant_init_method=None, quant_strategy="magnitude",
+                 init_weight=None, init_bias=None):
+
         super(INQConv1d, self).__init__(in_channels, out_channels, kernel_size,
-                 stride, padding, dilation, groups, 
+                 stride, padding, dilation, groups,
                  bias, padding_mode)
-        
+
         self.weight_inq_ctrl = INQNodeController(self, 'weight',
                                                  num_levels=num_levels,
                                                  quant_init_method=quant_init_method,
                                                  quant_strategy=quant_strategy)
-        
+        if init_weight is not None:
+            assert self.weight.data.shape == init_weight.shape, "Initial weights shape must correspond to {} layer weights: Expected {}, got {}".format(self.__class.__name__, self.weight.data.shape, init_weight.shape)
+            self.weight.data = init_weight.clone()
+
+        if init_bias is not None:
+            if bias == True:
+                assert self.bias.data.shape == init_bias.shape, "Initial bias shape must correspond to {} layer weights: Expected {}, got {}".format(self.__class__.__name__, self.bias.data.shape, init_bias.shape)
+                self.bias.data = init_bias.clone()
+            else:
+                print("Warning: You provided initial values for the bias of {}, but set the 'bias' parameter to False. Bias values are ignored!".format(self.__class__.__name__))
+
     def step(self, fraction):
         self.weight_inq_ctrl.inq_step(fraction)
 
     def forward(self, input):
         weight_assembled = self.weight_inq_ctrl.inq_assemble_weight(self)
-        
+
         if self.padding_mode == 'circular':
             expanded_padding = ((self.padding[0] + 1) // 2, self.padding[0] // 2)
             return nn.functional.conv1d(
@@ -307,29 +328,41 @@ class INQConv1d(nn.Conv1d):
                     (0,), self.dilation, self.groups)
         return nn.functional.conv1d(input, weight_assembled, self.bias, self.stride,
                                     self.padding, self.dilation, self.groups)
-        
-    
+
+
 class INQConv2d(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, 
-                 stride=1, padding=0, dilation=1, groups=1, 
-                 bias=True, #padding_mode='zeros', 
-                 num_levels=3, quant_init_method=None, quant_strategy="magnitude"):
-        
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 stride=1, padding=0, dilation=1, groups=1,
+                 bias=True, #padding_mode='zeros',
+                 num_levels=3, quant_init_method=None, quant_strategy="magnitude",
+                 init_weight=None, init_bias=None):
+
         super(INQConv2d, self).__init__(in_channels, out_channels, kernel_size,
-                 stride, padding, dilation, groups, 
-                 bias)#, padding_mode) # removed padding_mode for backward comp. to 0.4.1
-        
+                 stride, padding, dilation, groups,
+                 bias)#, padding_mode) # removed padding_mode for backward
+        #comp. to 0.4.1
+        if init_weight is not None:
+            assert self.weight.data.shape == init_weight.shape, "Initial weights shape must correspond to INQConv layer weights: Expected {}, got {}".format(self.weight.data.shape, init_weight.shape)
+            self.weight.data = init_weight.clone()
+
+        if init_bias is not None:
+            if bias == True:
+                assert self.bias.data.shape == init_bias.shape, "Initial bias shape must correspond to INQConv layer weights: Expected {}, got {}".format(self.bias.data.shape, init_bias.shape)
+                self.bias.data = init_bias.clone()
+            else:
+                print("Warning: You provided initial values for the bias of {}, but set the 'bias' parameter to False. Bias values are ignored!".format(self.__class__.__name__))
+
         self.weight_inq_ctrl = INQNodeController(self, 'weight',
                                                  num_levels=num_levels,
                                                  quant_init_method=quant_init_method,
                                                  quant_strategy=quant_strategy)
-        
+
     def step(self, fraction):
         self.weight_inq_ctrl.inq_step(fraction)
 
     def forward(self, input):
         weight_assembled = self.weight_inq_ctrl.inq_assemble_weight(self)
-        
+
 #        if self.padding_mode == 'circular':
 #            expanded_padding = ((self.padding[1] + 1) // 2, self.padding[1] // 2,
 #                                (self.padding[0] + 1) // 2, self.padding[0] // 2)
