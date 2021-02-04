@@ -256,7 +256,6 @@ class STEBatchNorm1d(_STEBatchNorm, nn.BatchNorm1d):
         beta_tilde = super(STEBatchNorm1d, self).get_beta_tilde()
         beta_tilde = beta_tilde.unsqueeze(0)
         beta_tilde = beta_tilde.unsqueeze(2)
-        #finally, scale & shift the input with the quantized parameters
         return beta_tilde
 
 
@@ -265,18 +264,17 @@ class STEBatchNorm2d(_STEBatchNorm, nn.BatchNorm2d):
         _STEBatchNorm.__init__(self, ste_modules=ste_modules, start_epoch=start_epoch, num_features=num_features, num_levels_mult=num_levels_mult, num_levels_add=num_levels_add, step_mult=step_mult, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
 
     def get_gamma_tilde(self):
-        gamma_tilde =  super(STEBatchNorm1d, self).get_gamma_tilde()
+        gamma_tilde =  super(STEBatchNorm2d, self).get_gamma_tilde()
         gamma_tilde = gamma_tilde.unsqueeze(0)
         gamma_tilde = gamma_tilde.unsqueeze(2)
         gamma_tilde = gamma_tilde.unsqueeze(3)
         return gamma_tilde
 
     def get_beta_tilde(self):
-        beta_tilde = super(STEBatchNorm1d, self).get_beta_tilde()
+        beta_tilde = super(STEBatchNorm2d, self).get_beta_tilde()
         beta_tilde = beta_tilde.unsqueeze(0)
         beta_tilde = beta_tilde.unsqueeze(2)
         beta_tilde = beta_tilde.unsqueeze(3)
-        #finally, scale & shift the input with the quantized parameters
         return beta_tilde
 
 
@@ -285,7 +283,7 @@ class STEBatchNorm3d(_STEBatchNorm, nn.BatchNorm3d):
         _STEBatchNorm.__init__(self, ste_modules=ste_modules, start_epoch=start_epoch, num_features=num_features, num_levels_mult=num_levels_mult, num_levels_add=num_levels_add, step_mult=step_mult, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
 
     def get_gamma_tilde(self):
-        gamma_tilde =  super(STEBatchNorm1d, self).get_gamma_tilde()
+        gamma_tilde =  super(STEBatchNorm3d, self).get_gamma_tilde()
         gamma_tilde = gamma_tilde.unsqueeze(0)
         gamma_tilde = gamma_tilde.unsqueeze(2)
         gamma_tilde = gamma_tilde.unsqueeze(3)
@@ -293,12 +291,11 @@ class STEBatchNorm3d(_STEBatchNorm, nn.BatchNorm3d):
         return gamma_tilde
 
     def get_beta_tilde(self):
-        beta_tilde = super(STEBatchNorm1d, self).get_beta_tilde()
+        beta_tilde = super(STEBatchNorm3d, self).get_beta_tilde()
         beta_tilde = beta_tilde.unsqueeze(0)
         beta_tilde = beta_tilde.unsqueeze(2)
         beta_tilde = beta_tilde.unsqueeze(3)
         beta_tilde = beta_tilde.unsqueeze(4)
-        #finally, scale & shift the input with the quantized parameters
         return beta_tilde
 
 #if __name__ == "__main__":
