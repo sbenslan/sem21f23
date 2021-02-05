@@ -89,6 +89,8 @@ def vgg_torchvision_fold_bias_to_bn(state_dict):
         feature_prefixes = [r.group(0) for r in results if r is not None]
         # we will have multiple occurrences of the prefixes, so use a hack to uniquify them
         feature_prefixes = list(OrderedDict.fromkeys(feature_prefixes))
+        # conv and BN layers are the only layers with parameters in the
+        # 'features' module and always occur back to back
         pairs = [{'conv':feature_prefixes[i], 'bn':feature_prefixes[i+1]} for i in range(0, len(feature_prefixes), 2)]
         return pairs
 
@@ -129,12 +131,10 @@ def vgg_torchvision_to_quantlab(state_dict_tv, state_dict_ql):
         tv_key = k.replace('adapter', 'features')
         state_dict_conversion_key[tv_key] = k
 
-    # 'features' indices are shifted
-    idx_re = re.compile('\d+')
-
-    n_adapter_layers = 3
-
     tv_features_keys = [k for k in state_dict_tv.keys() if 'features' in k and k not in state_dict_conversion_key.keys()]
+    # 'features' indices are shifted
+    n_adapter_layers = 3
+    idx_re = re.compile('\d+')
     for k in tv_features_keys:
         idx = int(idx_re.search(k).group(0))
         new_idx = idx - n_adapter_layers
