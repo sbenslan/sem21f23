@@ -132,7 +132,6 @@ def vgg_torchvision_to_quantlab(state_dict_tv, state_dict_ql):
     # 'features' indices are shifted
     idx_re = re.compile('\d+')
 
-    # TODO need to remove num_batches_tracked keys!
     n_adapter_layers = 3
 
     tv_features_keys = [k for k in state_dict_tv.keys() if 'features' in k and k not in state_dict_conversion_key.keys()]
@@ -150,12 +149,7 @@ def vgg_torchvision_to_quantlab(state_dict_tv, state_dict_ql):
     # convert state_dict
     new_state_dict = {}
     for k in state_dict_conversion_key.keys():
-        try:
-            ql_key = state_dict_conversion_key[k]
-            new_state_dict[ql_key] = state_dict_tv[k]
-        except KeyError:
-            print("oops!")
+        ql_key = state_dict_conversion_key[k]
+        new_state_dict[ql_key] = state_dict_tv[k]
 
     return new_state_dict
-
-
