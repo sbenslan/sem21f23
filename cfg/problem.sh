@@ -8,14 +8,14 @@ QUANTLAB_HOME=$(cd $(dirname ${DIR_CFG}) && pwd)
 
 # (hard) data folder
 PYTHON_READ_HARD_STORAGE_DATA="import sys; import json; fp = open('${HARD_STORAGE_CFG}', 'r'); d = json.load(fp); fp.close(); print(d['data'])"
-HARD_QUANTLAB_HOME_DATA=$(python -c "${PYTHON_READ_HARD_STORAGE_DATA}")/$(basename ${QUANTLAB_HOME})
+HARD_QUANTLAB_HOME_DATA=$(python -c "${PYTHON_READ_HARD_STORAGE_DATA}")/QuantLab
 HARD_DIR_DATA=${HARD_QUANTLAB_HOME_DATA}/problems/${PROBLEM}/data
 mkdir -p ${HARD_DIR_DATA}
 echo "QuantLab: remember to import and prepare data for problem ${PROBLEM} at ${HARD_DIR_DATA} ."
 
 # (hard) logs folder
 PYTHON_READ_HARD_STORAGE_LOGS="import sys; import json; fp = open('${HARD_STORAGE_CFG}', 'r'); d = json.load(fp); fp.close(); print(d['logs'])"
-HARD_QUANTLAB_HOME_LOGS=$(python -c "${PYTHON_READ_HARD_STORAGE_LOGS}")/$(basename ${QUANTLAB_HOME})
+HARD_QUANTLAB_HOME_LOGS=$(python -c "${PYTHON_READ_HARD_STORAGE_LOGS}")/QuantLab
 HARD_DIR_LOGS=${HARD_QUANTLAB_HOME_LOGS}/problems/${PROBLEM}/logs
 mkdir -p ${HARD_DIR_LOGS}
 
