@@ -194,7 +194,7 @@ class Logbook(object):
                 message += 'Network topology:      {}\n'.format(self.topology)
                 message += 'Data directory:        {}\n'.format(self.dir_data)
                 message += 'Experiment directory:  {}\n'.format(self.dir_exp)
-    
+
                 def print_message(message):
                     """Print a nice delimiter around a multiline message."""
                     lines = message.splitlines()
@@ -204,7 +204,7 @@ class Logbook(object):
                     for l in lines:
                         print(l)
                     print('+' + '-' * width + '+')
-    
+
                 print_message(message)
 
             # load configuration
