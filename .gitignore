@@ -3,4 +3,5 @@
 **/docs/_build/*
 **/data
 **/logs
+/cfg/hard_storage.json
 
