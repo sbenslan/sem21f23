@@ -1,8 +1,11 @@
 import quantlib.graphs as qg
 import quantlib.algorithms as qa
-
+from quantlib.graphs.edit import _replace_node
+from quantlib.algorithms.ste import STEActivation
+from torch import nn
 
 __all__ = ['features_ste_inq', 'features_ste_inq_get_controllers']
+
 
 
 def features_ste_inq(config, net):
@@ -23,6 +26,13 @@ def features_ste_inq(config, net):
     ste_config = config['STE']
     conv_nodes = get_features_conv_nodes(net)
     qg.edit.add_before_linear_ste(net, conv_nodes, num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch'])
+    # add a last STE after the last batch norm layer
+    bn_nodes = qg.find_nodes(qg.list_nodes(net), [qg.rule_batchnorm_nodes], mix='or')
+
+    last_bn_node = bn_nodes[-1]
+    m = last_bn_node.module
+    ste_bn_m = nn.Sequential(m, STEActivation(num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch']))
+    _replace_node(net, last_bn_node.name, ste_bn_m)
 
     # replace convolutions with INQ convolutions
     inq_config = config['INQ']
