@@ -137,9 +137,9 @@ def get_network(logbook):
     except KeyError:
         model_file = None
     if model_file is not None:
-        if load_unq_pretrained:
-            print("Warning: Loading of unquantized pretrained weights has no effect - quantized pretrained model is specified as well!")
         if logbook.is_master:
+            if load_unq_pretrained:
+                print("Warning: Loading of unquantized pretrained weights has no effect - quantized pretrained model is specified as well!")
             model_path = get_pretrained_model_path(model_file)
             state_dict_pt = torch.load(model_path)
             # if required, convert the state_dict
