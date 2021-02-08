@@ -1,7 +1,9 @@
+import re
+import torch
 import torch.nn as nn
 
 
-__all__ = ['VGG']
+__all__ = ['VGG', 'vgg_torchvision_to_quantlab']
 
 __CONFIGS__ = {
     'VGG11': ['M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -83,3 +85,79 @@ class VGG(nn.Module):
                                    # https://stackoverflow.com/questions/57234095/what-is-the-difference-of-flatten-and-view-1-in-pytorch
         x = self.classifier(x)
         return x
+
+def vgg_torchvision_fold_bias_to_bn(state_dict):
+    """Folds convolution biases into BatchNorm layers and returns the modified state_dict without the bias keys"""
+
+    def get_conv_bn_pairs(state_dict):
+        from collections import OrderedDict
+        # returns the key prefixes for all conv+bn pairs in a list of dicts
+        feature_re = re.compile('features\.\d+')
+        results = map(feature_re.search, state_dict.keys())
+        feature_prefixes = [r.group(0) for r in results if r is not None]
+        # we will have multiple occurrences of the prefixes, so use a hack to uniquify them
+        feature_prefixes = list(OrderedDict.fromkeys(feature_prefixes))
+        # conv and BN layers are the only layers with parameters in the
+        # 'features' module and always occur back to back
+        pairs = [{'conv':feature_prefixes[i], 'bn':feature_prefixes[i+1]} for i in range(0, len(feature_prefixes), 2)]
+        return pairs
+
+    def fold_bias_to_bn(state_dict, pair, eps):
+        # we no longer want the conv_bias key to be in the dict
+        conv_bias = state_dict.pop(pair['conv']+'.bias')
+        bn_var = state_dict[pair['bn']+'.running_var']
+        sigma = torch.sqrt(bn_var + eps)
+        gamma = state_dict[pair['bn']+'.weight']
+        bias_correction = gamma * conv_bias / sigma
+        # fold the conv bias into the BN
+        state_dict[pair['bn']+'.bias'] += bias_correction
+        return state_dict
+
+    pairs = get_conv_bn_pairs(state_dict)
+    # in the unlikely case that the default 'eps' for BN changes with pyTorch releases, get it from a real BN instance
+    dummy_bn = nn.BatchNorm2d(1)
+    eps = dummy_bn.eps
+    for p in pairs:
+        fold_bias_to_bn(state_dict, p, eps)
+
+    return state_dict
+
+
+def vgg_torchvision_to_quantlab(state_dict_tv, state_dict_ql):
+    """Takes a state_dict for the TorchVision VGG and converts it to one compatible with the above-defined VGG class"""
+    # this dict takes a TORCHVISION version state_dict key and returns the corresponding QUANTLAB
+    # version key
+    state_dict_conversion_key = {}
+
+    # TorchVision VGGs use convolutions with biases even when BN is enabled, so these biases need to be folded into the BatchNorm...
+    state_dict_tv = vgg_torchvision_fold_bias_to_bn(state_dict_tv)
+
+    # now, the only difference between TV and QL VGGs is the presence of the
+    # 'adapter' module
+    adapter_keys = [k for k in state_dict_ql.keys() if 'adapter' in k and 'num_batches_tracked' not in k]
+    for k in adapter_keys:
+        tv_key = k.replace('adapter', 'features')
+        state_dict_conversion_key[tv_key] = k
+
+    tv_features_keys = [k for k in state_dict_tv.keys() if 'features' in k and k not in state_dict_conversion_key.keys()]
+    # 'features' indices are shifted
+    n_adapter_layers = 3
+    idx_re = re.compile('\d+')
+    for k in tv_features_keys:
+        idx = int(idx_re.search(k).group(0))
+        new_idx = idx - n_adapter_layers
+        ql_k = k.replace(str(idx), str(new_idx))
+        state_dict_conversion_key[k] = ql_k
+
+    # the classifier module is identical
+    classifier_keys = [k for k in state_dict_tv.keys() if 'classifier' in k]
+    for k in classifier_keys:
+        state_dict_conversion_key[k] = k
+
+    # convert state_dict
+    new_state_dict = {}
+    for k in state_dict_conversion_key.keys():
+        ql_key = state_dict_conversion_key[k]
+        new_state_dict[ql_key] = state_dict_tv[k]
+
+    return new_state_dict

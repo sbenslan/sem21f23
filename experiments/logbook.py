@@ -149,7 +149,9 @@ class Logbook(object):
             exp_id (str): The decimal literal identifying the experiment.
 
         """
-
+        # TODO:
+        # this is a inconsistent with the 'cfg/storage.sh' and
+        # 'cfg/problem.sh' scripts. Should be simplified
         if self.is_master:
 
             QUANTLAB_HOME = sys.path[0]  # QuantLab should be invoked from `main.py`'s directory
@@ -171,7 +173,10 @@ class Logbook(object):
 
             # get pointers to SOFT SHARED resources (which are redirected to HARD ones using symlinks)
             DIR_PROBLEM = os.path.join(QUANTLAB_HOME, 'problems', self.problem)
-            # data
+
+            dir_topology = os.path.join(DIR_PROBLEM, self.topology)
+            self.dir_topology = dir_topology
+
             dir_data = os.path.join(DIR_PROBLEM, 'data')
             if not os.path.isdir(dir_data):
                 os.symlink(HARD_DIR_DATA, dir_data)

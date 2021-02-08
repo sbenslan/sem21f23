@@ -1,18 +1,22 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 90,
+        "n_epochs": 76,
         "metrics": {
             "target_metric": "valid_loss"
         }
     },
     "data": {
         "augment": true,
-        "bs_train": 48,
-        "bs_valid": 48
+        "bs_train": 128,
+        "bs_valid": 128
     },
     "network": {
         "class": "VGG",
+        "pretrained_unquantized": "https://download.pytorch.org/models/vgg19_bn-c79401a0.pth",
+        "state_dict_conversion_unquantized": "vgg_torchvision_to_quantlab",
+        "pretrained_quantized": null,
+        "state_dict_conversion_quantized": null,
         "params": {
             "config": "VGG19",
             "bn": true
@@ -41,7 +45,7 @@
         "optimizer": {
             "class": "SGD",
             "params": {
-                "lr": 0.01,
+                "lr": 0.005,
                 "momentum": 0.9,
                 "weight_decay": 5e-4
             }
@@ -50,18 +54,27 @@
             "class": "HandScheduler",
             "params": {
                 "schedule": {
-                    "0": 1,
-                    "25": 0.1,
-                    "33": 1,
-                    "39": 0.1,
-                    "43": 1,
-                    "49": 0.1,
-                    "53": 1,
-                    "59": 0.1,
-                    "63": 1,
-                    "69": 0.1,
-                    "73": 1,
-                    "79": 0.1
+                    "0": 0.2,
+                    "3": 0.1,
+                    "5": 1,
+                    "7": 0.1,
+                    "10": 1,
+                    "17": 0.1,
+                    "20": 1,
+                    "27": 0.1,
+                    "30": 1,
+                    "37": 0.1,
+                    "40": 1,
+                    "47": 0.1,
+                    "50": 1,
+                    "57": 0.1,
+                    "60": 1,
+                    "63": 0.1,
+                    "65": 1,
+                    "68": 0.1,
+                    "70": 1,
+                    "73": 0.1
+
                 }
             },
             "step_metric": "valid_metric"
@@ -73,15 +86,15 @@
             },
             "INQ": {
                 "schedule": {
-                    "30": 0.2,
-                    "40": 0.4,
-                    "50": 0.6,
-                    "60": 0.8,
-                    "70": 0.9,
-                    "80": 0.95,
-                    "90": 0.975,
-                    "100": 0.9875,
-                    "110": 1.0
+                    "10": 0.2,
+                    "20": 0.4,
+                    "30": 0.6,
+                    "40": 0.8,
+                    "50": 0.9,
+                    "55": 0.95,
+                    "60": 0.975,
+                    "65": 0.9875,
+                    "70": 1.0
                 },
                 "clear_optim_state_on_step": true
             }

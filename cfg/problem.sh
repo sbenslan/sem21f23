@@ -26,9 +26,16 @@ touch ${DIR_PROBLEM}/config.json
 touch ${DIR_PROBLEM}/__init__.py
 
 # data folder
-DIR_DATA=${DIR_PROBLEM}/data
-ln -s ${HARD_DIR_DATA} ${DIR_DATA}
+SOFT_DIR_DATA=${DIR_PROBLEM}/data
+if [[ ! -e ${SOFT_DIR_DATA} ]]
+   then
+       ln -s ${HARD_DIR_DATA} ${SOFT_DIR_DATA}
+fi
 
 # logs folder
-DIR_LOGS=${DIR_PROBLEM}/logs
-ln -s ${HARD_DIR_LOGS} ${DIR_LOGS}
+SOFT_DIR_LOGS=${DIR_PROBLEM}/logs
+if [[ ! -e ${SOFT_DIR_LOGS} ]]
+   then
+       ln -s ${HARD_DIR_LOGS} ${SOFT_DIR_LOGS}
+fi
+

@@ -1,3 +1,8 @@
+import os
+import requests
+from requests.exceptions import MissingSchema
+from urllib.parse import urlparse
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -46,13 +51,97 @@ def get_data(logbook):
 def get_network(logbook):
     """Return a network for the experiment and the loss function for training."""
 
+    def get_pretrained_model_path(url_or_path):
+        """If given URL, will try to download the file at that URL if it does not exist
+        already and return the path to the file. If given a path, will return
+        that path or raise FileNotFound. If the argument is simply a filename
+        without preceding path, the file is assumed to be located in the
+        '<problem>/<topology>/pretrained' folder.
+
+        """
+        #create a "pretrained" folder if it doesn't exist yet
+        pretrain_dir = os.path.join(logbook.dir_topology, 'pretrained')
+        if not os.path.isdir(pretrain_dir):
+            os.mkdir(pretrain_dir)
+        try:
+            pretrained_url = urlparse(url_or_path)
+            model_path = os.path.join(pretrain_dir, os.path.basename(pretrained_url.path))
+            if os.path.exists(model_path):
+                return model_path
+            else:
+                r = requests.get(url_or_path, stream=True)
+                print("Downloading pretrained model from '{}'...".format(url_or_path))
+                open(model_path, 'wb').write(r.content)
+                print("Done!")
+                return model_path
+        except MissingSchema:
+            # this means it wasn't a proper URL, so interpret it as a path
+            if os.path.dirname(url_or_path) == '':
+                # no directory -> should be located in the 'pretrained' dir
+                model_path = os.path.join(pretrain_dir, url_or_path)
+            else:
+                model_path = url_or_path
+            if not os.path.exists(model_path):
+                raise FileNotFoundError("Pretrained model not found at '{}'!".format(os.path.abspath(model_path)))
+            return model_path
+
+    def convert_state_dict(fn_name, state_dict_pt, state_dict_ql):
+        """The key 'fn_name' is expected to be in logbook.config['network'] and should
+        specify a member of the 'topology' module which takes the state_dict of
+        the pretrained model and that of the equivalent QuantLab model. This
+        function should convert the pretrained state_dict to one compatible
+        with the QuantLab model.
+        """
+
+        # if the fn_name key does not exist in the logbook config
+        try:
+            sd_convert_fn = getattr(logbook.lib, logbook.config['network'][fn_name])
+        except KeyError:
+            return state_dict_pt
+
+        state_dict_converted = state_dict_pt
+
+        if sd_convert_fn is not None:
+            state_dict_converted = sd_convert_fn(state_dict_pt, state_dict_ql)
+
+        return state_dict_converted
+
     # create the network
     net = getattr(logbook.lib, logbook.config['network']['class'])(**logbook.config['network']['params'])
+
+    # if specified, load pretrained checkpoint for unquantized network
+    load_unq_pretrained = False
+    try:
+        model_file = logbook.config['network']['pretrained_unquantized']
+    except KeyError:
+        model_file = None
+    if model_file is not None:
+        model_path = get_pretrained_model_path(model_file)
+        state_dict_pt = torch.load(model_path)
+        # if required, convert the state_dict
+        state_dict_pt = convert_state_dict('state_dict_conversion_unquantized', state_dict_pt, net.state_dict())
+        net.load_state_dict(state_dict_pt)
+        load_unq_pretrained = True
+
 
     # quantize (if specified)
     if logbook.config['network']['quantize'] is not None:
         quant_convert = getattr(logbook.lib, logbook.config['network']['quantize']['routine'])
         net = quant_convert(logbook.config['network']['quantize'], net)
+
+    # if specified, load pretrained checkpoint for quantized network
+    try:
+        model_file = logbook.config['network']['pretrained_quantized']
+    except KeyError:
+        model_file = None
+    if model_file is not None:
+        if load_unq_pretrained:
+            print("Warning: Loading of unquantized pretrained weights has no effect - quantized pretrained model is specified as well!")
+            model_path = get_pretrained_model_path(model_file)
+            state_dict_pt = torch.load(model_path)
+            # if required, convert the state_dict
+            state_dict_pt = convert_state_dict('state_dict_conversion_quantized', state_dict_pt, net.state_dict())
+            net.load_state_dict(state_dict_pt)
 
     # move to proper device
     net = net.to(logbook.hw_cfg['device'])
