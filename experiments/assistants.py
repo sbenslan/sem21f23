@@ -116,12 +116,14 @@ def get_network(logbook):
     except KeyError:
         model_file = None
     if model_file is not None:
-        model_path = get_pretrained_model_path(model_file)
-        state_dict_pt = torch.load(model_path)
-        # if required, convert the state_dict
-        state_dict_pt = convert_state_dict('state_dict_conversion_unquantized', state_dict_pt, net.state_dict())
-        net.load_state_dict(state_dict_pt)
-        load_unq_pretrained = True
+        if logbook.is_master:
+            model_path = get_pretrained_model_path(model_file)
+            state_dict_pt = torch.load(model_path)
+            # if required, convert the state_dict
+            state_dict_pt = convert_state_dict('state_dict_conversion_unquantized', state_dict_pt, net.state_dict())
+            net.load_state_dict(state_dict_pt)
+            load_unq_pretrained = True
+        hvd.broadcast_parameters(net.state_dict(), root_rank=logbook.sw_cfg['master_rank'])
 
 
     # quantize (if specified)
@@ -137,11 +139,13 @@ def get_network(logbook):
     if model_file is not None:
         if load_unq_pretrained:
             print("Warning: Loading of unquantized pretrained weights has no effect - quantized pretrained model is specified as well!")
+        if logbook.is_master:
             model_path = get_pretrained_model_path(model_file)
             state_dict_pt = torch.load(model_path)
             # if required, convert the state_dict
             state_dict_pt = convert_state_dict('state_dict_conversion_quantized', state_dict_pt, net.state_dict())
             net.load_state_dict(state_dict_pt)
+        hvd.broadcast_parameters(net.state_dict(), root_rank=logbook.sw_cfg['master_rank'])
 
     # move to proper device
     net = net.to(logbook.hw_cfg['device'])
