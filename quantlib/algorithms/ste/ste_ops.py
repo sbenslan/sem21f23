@@ -10,6 +10,9 @@ __all__ = [
     'STEController',
     'STEActivationNew',
     'STEActivation',
+    'STEBatchNorm1d',
+    'STEBatchNorm2d',
+    'STEBatchNorm3d'
 ]
 
 
@@ -186,6 +189,20 @@ class _STEBatchNorm(_BatchNorm):
         self.register_buffer('min_add_int', torch.tensor(-(num_levels_add-1)/2))
         self.register_buffer('max_add_int', torch.tensor((num_levels_add-1)/2))
 
+    @classmethod
+    def from_bn(cls, ste_modules, start_epoch, num_levels_mult, num_levels_add, step_mult, bn_inst):
+        """Create STEBatchNorm module from a regular BatchNorm instance"""
+        ste_bn_inst = cls(ste_modules, start_epoch, num_levels_mult, num_levels_add, step_mult,
+                          num_features=bn_inst.num_features, eps=bn_inst.eps, momentum=bn_inst.momentum,
+                          affine=bn_inst.affine, track_running_stats=bn_inst.affine)
+        if bn_inst.affine:
+            ste_bn_inst.weight.data = bn_inst.weight.data
+            ste_bn_inst.bias.data = bn_inst.bias.data
+        if bn_inst.track_running_stats:
+            ste_bn_inst.running_mean.data = bn_inst.running_mean.data
+            ste_bn_inst.running_var.data = bn_inst.running_var.data
+        return ste_bn_inst
+
     def step(self, epoch):
         if epoch == self.start_epoch:
             # copy the quanta from the linked STE layers
@@ -245,6 +262,7 @@ class _STEBatchNorm(_BatchNorm):
 class STEBatchNorm1d(_STEBatchNorm, nn.BatchNorm1d):
     def __init__(self, ste_modules, start_epoch, num_levels_mult, num_levels_add, step_mult, num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True):
         _STEBatchNorm.__init__(self, ste_modules=ste_modules, start_epoch=start_epoch, num_features=num_features, num_levels_mult=num_levels_mult, num_levels_add=num_levels_add, step_mult=step_mult, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
+
 
     def get_gamma_tilde(self):
         gamma_tilde =  super(STEBatchNorm1d, self).get_gamma_tilde()
