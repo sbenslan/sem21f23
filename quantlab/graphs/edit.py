@@ -71,10 +71,10 @@ def replace_linear_inq(net, nodes_set, num_levels, quant_init_method=None, quant
         if m_type == 'Linear':
             in_features = m.in_features
             out_features = m.out_features
-            bias = m.bias
+            bias = m.bias is not None
             inq_node = algo.inq.INQLinear(in_features, out_features, bias=bias,
                                           num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy,
-                                          init_weight=m.weight.data, init_bias=None if not m.bias else m.bias.data)
+                                          init_weight=m.weight.data, init_bias=None if not bias else m.bias.data)
         elif m_type.startswith('Conv'):
             in_channels = m.in_channels
             out_channels = m.out_channels
@@ -83,15 +83,15 @@ def replace_linear_inq(net, nodes_set, num_levels, quant_init_method=None, quant
             padding = m.padding
             dilation = m.dilation
             groups = m.groups
-            bias = m.bias
+            bias = m.bias is not None
             if m_type == 'Conv1d':
                 inq_node = algo.inq.INQConv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
                                               num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy,
-                                              init_weight=m.weight.data, init_bias=None if not m.bias else m.bias.data)
+                                              init_weight=m.weight.data, init_bias=None if not bias is None else m.bias.data)
             if m_type == 'Conv2d':
                 inq_node = algo.inq.INQConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
                                               num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy,
-                                              init_weight=m.weight.data, init_bias=None if not m.bias else m.bias.data)
+                                              init_weight=m.weight.data, init_bias=None if not bias is None else m.bias.data)
             if m_type == 'Conv3d':
                 raise NotImplementedError
         assert(inq_node is not None)
