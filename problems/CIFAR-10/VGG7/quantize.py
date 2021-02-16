@@ -49,7 +49,7 @@ def features_ste_inq(config, net):
     ste_config = config['STE']
     conv_nodes = get_features_conv_nodes(net)
     qg.edit.add_before_linear_ste(net, conv_nodes, num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch'])
-    # add a last STE after the last batch norm layer
+    # add a last STE after the last 'features' layer
     f_rule = qg.analyse.get_rules_multiple_blocks(['features'])
     features_nodes = qg.find_nodes(qg.list_nodes(net), f_rule, mix='or')
 

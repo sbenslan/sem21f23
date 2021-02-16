@@ -32,30 +32,34 @@ def features_ste_inq(config, net):
         features_nodes = qg.analyse.find_nodes(nodes, rule1, mix='or')
         sequences = []
         for i in range(len(features_nodes)):
-            if (isinstance(features_nodes[i].module, STEActivation) and
-               isinstance(features_nodes[i+1].module, nn.Conv2d) and
-               isinstance(features_nodes[i+2].module, nn.BatchNorm2d) and
-               isinstance(features_nodes[i+3].module, nn.ReLU)):
-                if isinstance(features_nodes[i+4].module, nn.MaxPool2d) and isinstance(features_nodes[i+5].module, STEActivation):
-                    l = 6
-                elif isinstance(features_nodes[i+4].module, STEActivation):
-                    l = 5
-                else:
-                    continue
-                sequences.append(features_nodes[i:i+l])
+            try:
+                if (isinstance(features_nodes[i].module, STEActivation) and
+                   isinstance(features_nodes[i+1].module, nn.Conv2d) and
+                   isinstance(features_nodes[i+2].module, nn.BatchNorm2d) and
+                   isinstance(features_nodes[i+3].module, nn.ReLU)):
+                    if isinstance(features_nodes[i+4].module, nn.MaxPool2d) and isinstance(features_nodes[i+5].module, STEActivation):
+                        l = 6
+                    elif isinstance(features_nodes[i+4].module, STEActivation):
+                        l = 5
+                    else:
+                        continue
+                    sequences.append(features_nodes[i:i+l])
+            except IndexError:
+                pass
+        return sequences
 
 
     # add STE in front of convolutions
     ste_config = config['STE']
     conv_nodes = get_features_conv_nodes(net)
     qg.edit.add_before_linear_ste(net, conv_nodes, num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch'])
-    # add a last STE after the last batch norm layer
-    bn_nodes = qg.find_nodes(qg.list_nodes(net), [qg.rule_batchnorm_nodes], mix='or')
-
-    last_bn_node = bn_nodes[-1]
-    m = last_bn_node.module
-    ste_bn_m = nn.Sequential(m, STEActivation(num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch']))
-    _replace_node(net, last_bn_node.name, ste_bn_m)
+    # add a last STE after the last 'features' layer
+    f_rule = qg.analyse.get_rules_multiple_blocks(['features'])
+    features_nodes = qg.find_nodes(qg.list_nodes(net), f_rule, mix='or')
+    last_f_node = features_nodes[-1]
+    m = last_f_node.module
+    last_ste_m = nn.Sequential(m, STEActivation(num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch']))
+    _replace_node(net, last_f_node.name, last_ste_m)
 
     # if specified: replace batchNorm layers with STEBatchNorm
     try:
