@@ -165,7 +165,7 @@ class STEActivation(torch.nn.Module):
 
 
 class _STEBatchNorm(_BatchNorm):
-    def __init__(self, ste_modules, start_epoch, num_levels_mult, num_levels_add, step_mult, num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True):
+    def __init__(self, ste_modules, start_epoch, num_levels_mult, num_levels_add, step_mult, num_features, hw_round_mode='truncate', eps=1e-05, momentum=0.1, affine=True, track_running_stats=True):
         super(_STEBatchNorm, self).__init__(num_features=num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
         # ste_modules[0]: the ste module before the activation-quantized layer
         # preceding the batch norm (defining the quantum of input activations)
@@ -177,6 +177,11 @@ class _STEBatchNorm(_BatchNorm):
         self.start_epoch = start_epoch
         self.num_levels_mult = num_levels_mult
         self.num_levels_add = num_levels_add
+        # hw_round_mode can be "round" or "truncate". in case of "truncate",
+        # the beta_tilde (folded bias) will be reduced by q_out/2 to account for STE
+        # layers' rounding. This way, fake-quantized and true-quantized
+        assert hw_round_mode in ['truncate', 'round'], 'Invalid hw_round_mode {}'.format(hw_round_mode)
+        self.hw_round_mode = hw_round_mode
         self.register_buffer('step_mult', torch.tensor(step_mult))
         # step_add is given by q_out
         self.started = False
@@ -206,8 +211,8 @@ class _STEBatchNorm(_BatchNorm):
     def step(self, epoch):
         if epoch == self.start_epoch:
             # copy the quanta from the linked STE layers
-            self.q_in.data = self.ste_in.abs_max_value.data.clone().detach()/(ste_in.num_levels-1)
-            self.q_out.data = self.ste_out.abs_max_value.data.clone().detach()/(ste_out.num_levels-1)
+            self.q_in.data = 2*self.ste_in.abs_max_value.data.clone().detach()/(ste_in.num_levels-1)
+            self.q_out.data = 2*self.ste_out.abs_max_value.data.clone().detach()/(ste_out.num_levels-1)
         if epoch >= self.start_epoch:
             self.started = True
 
@@ -256,6 +261,8 @@ class _STEBatchNorm(_BatchNorm):
             self._check_input_dim(x)
             gamma_tilde = self.get_gamma_tilde()
             beta_tilde = self.get_beta_tilde()
+            if self.hw_round_mode == 'truncate':
+                beta_tilde -= self.q_out/2
             return x*gamma_tilde + beta_tilde
 
 
