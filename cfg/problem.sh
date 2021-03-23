@@ -2,7 +2,7 @@
 
 PROBLEM=${1}
 
-CFG_DIR=$(cd $(dirname ${BASH_SOURCE[0]}) && pwd)
+CFG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARD_STORAGE=${CFG_DIR}/hard_storage.json
 QUANT_HOME=$(cd $(dirname ${CFG_DIR}) && pwd)
 
