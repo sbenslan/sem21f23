@@ -1,4 +1,4 @@
-"""import quantlab.graphs as qg
+import quantlab.graphs as qg
 import quantlab.algorithms as qa
 
 
@@ -49,4 +49,3 @@ def layers_ste_inq_get_controllers(config, net):
     inq_controller = qa.inq.INQController(inq_modules, inq_ctrl_config['schedule'], inq_ctrl_config['clear_optim_state_on_step'])
 
     return [ste_controller, inq_controller]
-"""
