@@ -1,78 +1,119 @@
 import torch
 import torch.nn as nn
 
-
-__all__ = ['VGG']
-
-__CONFIGS__ = {
-    'VGG11': ['M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'VGG13': [64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'VGG16': [64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'VGG19': [64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
-}
+from quantlab.indiv.stochastic_ops import StochasticActivation, StochasticLinear, StochasticConv2d
 
 
 class VGG(nn.Module):
-    def __init__(self, config, bn=False, num_classes=1000):
+    """Quantized VGG (both weights and activations)."""
+    def __init__(self, capacity, quant_schemes):
         super(VGG, self).__init__()
-        if bn:
-            adapter = nn.Sequential(
-                nn.Conv2d(3, 64, kernel_size=3, padding=1, bias=not bn),
-                nn.BatchNorm2d(64),
-                nn.ReLU(inplace=True)
-            )
-        else:
-            adapter = nn.Sequential(
-                nn.Conv2d(3, 64, kernel_size=3, padding=1),
-                nn.ReLU(inplace=True)
-            )
-        self.adapter = adapter
-        self.features = self._make_features(__CONFIGS__[config], bn)
-        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
-        self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, num_classes),
-        )
-        self._initialize_weights()
-
-    @staticmethod
-    def _make_features(config, bn):
-        layers = []
-        in_channels = 64
-        for v in config:
-            if v == 'M':
-                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-            else:
-                layers += [nn.Conv2d(in_channels, v, kernel_size=3, padding=1, bias=not bn)]
-                layers += [nn.BatchNorm2d(v)] if bn else []
-                layers += [nn.ReLU(inplace=True)]
-                in_channels = v
-        return nn.Sequential(*layers)
+        c0 = 3
+        c1 = int(128 * capacity)
+        c2 = int(128 * 2 * capacity)
+        c3 = int(128 * 4 * capacity)
+        nh = 1024
+        # convolutional layers
+        self.phi1_conv = StochasticConv2d(*quant_schemes['phi1_conv'], c0, c1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.phi1_bn   = nn.BatchNorm2d(c1)
+        self.phi1_act  = StochasticActivation(*quant_schemes['phi1_act'])
+        self.phi2_conv = StochasticConv2d(*quant_schemes['phi2_conv'], c1, c1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.phi2_mp   = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.phi2_bn   = nn.BatchNorm2d(c1)
+        self.phi2_act  = StochasticActivation(*quant_schemes['phi2_act'])
+        self.phi3_conv = StochasticConv2d(*quant_schemes['phi3_conv'], c1, c2, kernel_size=3, stride=1, padding=1, bias=False)
+        self.phi3_bn   = nn.BatchNorm2d(c2)
+        self.phi3_act  = StochasticActivation(*quant_schemes['phi3_act'])
+        self.phi4_conv = StochasticConv2d(*quant_schemes['phi4_conv'], c2, c2, kernel_size=3, stride=1, padding=1, bias=False)
+        self.phi4_mp   = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.phi4_bn   = nn.BatchNorm2d(c2)
+        self.phi4_act  = StochasticActivation(*quant_schemes['phi4_act'])
+        self.phi5_conv = StochasticConv2d(*quant_schemes['phi5_conv'], c2, c3, kernel_size=3, stride=1, padding=1, bias=False)
+        self.phi5_bn   = nn.BatchNorm2d(c3)
+        self.phi5_act  = StochasticActivation(*quant_schemes['phi5_act'])
+        self.phi6_conv = StochasticConv2d(*quant_schemes['phi6_conv'], c3, c3, kernel_size=3, stride=1, padding=1, bias=False)
+        self.phi6_mp   = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.phi6_bn   = nn.BatchNorm2d(c3)
+        self.phi6_act  = StochasticActivation(*quant_schemes['phi6_act'])
+        # fully connected layers
+        self.phi7_fc   = StochasticLinear(*quant_schemes['phi7_fc'], c3 * 4 * 4, nh, bias=False)
+        self.phi7_bn   = nn.BatchNorm1d(nh)
+        self.phi7_act  = StochasticActivation(*quant_schemes['phi7_act'])
+        self.phi8_fc   = StochasticLinear(*quant_schemes['phi8_fc'], nh, nh, bias=False)
+        self.phi8_bn   = nn.BatchNorm1d(nh)
+        self.phi8_act  = StochasticActivation(*quant_schemes['phi8_act'])
+        self.phi9_fc   = StochasticLinear(*quant_schemes['phi9_fc'], nh, 10, bias=False)
+        self.phi9_bn   = nn.BatchNorm1d(10)
 
     def forward(self, x):
-        x = self.adapter(x)
-        x = self.features(x)
-        x = self.avgpool(x)
-        # x = torch.flatten(x, 1)
-        x = x.view(x.size(0), -1)  # enable conversion to Caffe model; to understand difference see:
-                                   # https://stackoverflow.com/questions/57234095/what-is-the-difference-of-flatten-and-view-1-in-pytorch
-        x = self.classifier(x)
+        x = self.phi1_conv(x)
+        x = self.phi1_bn(x)
+        x = self.phi1_act(x)
+        x = self.phi2_conv(x)
+        x = self.phi2_mp(x)
+        x = self.phi2_bn(x)
+        x = self.phi2_act(x)
+        x = self.phi3_conv(x)
+        x = self.phi3_bn(x)
+        x = self.phi3_act(x)
+        x = self.phi4_conv(x)
+        x = self.phi4_mp(x)
+        x = self.phi4_bn(x)
+        x = self.phi4_act(x)
+        x = self.phi5_conv(x)
+        x = self.phi5_bn(x)
+        x = self.phi5_act(x)
+        x = self.phi6_conv(x)
+        x = self.phi6_mp(x)
+        x = self.phi6_bn(x)
+        x = self.phi6_act(x)
+        x = x.view(-1, torch.Tensor(list(x.size()[-3:])).to(torch.int32).prod().item())
+        x = self.phi7_fc(x)
+        x = self.phi7_bn(x)
+        x = self.phi7_act(x)
+        x = self.phi8_fc(x)
+        x = self.phi8_bn(x)
+        x = self.phi8_act(x)
+        x = self.phi9_fc(x)
+        x = self.phi9_bn(x)
         return x
 
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.constant_(m.bias, 0)
+    def forward_with_tensor_stats(self, x):
+        stats = []
+        x = self.phi1_conv(x)
+        stats.append(('phi1_conv_w', self.phi1_conv.weight.data))
+        x = self.phi1_bn(x)
+        x = self.phi1_act(x)
+        x = self.phi2_conv(x)
+        x = self.phi2_mp(x)
+        x = self.phi2_bn(x)
+        x = self.phi2_act(x)
+        x = self.phi3_conv(x)
+        stats.append(('phi3_conv_w', self.phi3_conv.weight.data))
+        x = self.phi3_bn(x)
+        x = self.phi3_act(x)
+        x = self.phi4_conv(x)
+        x = self.phi4_mp(x)
+        x = self.phi4_bn(x)
+        x = self.phi4_act(x)
+        x = self.phi5_conv(x)
+        stats.append(('phi5_conv_w', self.phi5_conv.weight.data))
+        x = self.phi5_bn(x)
+        x = self.phi5_act(x)
+        x = self.phi6_conv(x)
+        x = self.phi6_mp(x)
+        x = self.phi6_bn(x)
+        x = self.phi6_act(x)
+        x = x.view(-1, torch.Tensor(list(x.size()[-3:])).to(torch.int32).prod().item())
+        x = self.phi7_fc(x)
+        stats.append(('phi7_fc_w', self.phi7_fc.weight.data))
+        x = self.phi7_bn(x)
+        x = self.phi7_act(x)
+        x = self.phi8_fc(x)
+        stats.append(('phi8_fc_w', self.phi8_fc.weight.data))
+        x = self.phi8_bn(x)
+        x = self.phi8_act(x)
+        x = self.phi9_fc(x)
+        stats.append(('phi9_fc_w', self.phi9_fc.weight.data))
+        x = self.phi9_bn(x)
+        return stats, x
