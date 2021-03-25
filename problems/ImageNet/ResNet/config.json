@@ -8,8 +8,8 @@
     },
     "data": {
         "augment": true,
-        "bs_train": 6,
-        "bs_valid": 6
+        "bs_train": 48,
+        "bs_valid": 48
     },
     "network": {
         "class": "ResNet",

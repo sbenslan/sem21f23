@@ -8,8 +8,8 @@
     },
     "data": {
         "augment": true,
-        "bs_train": 12,
-        "bs_valid": 12
+        "bs_train": 48,
+        "bs_valid": 48
     },
     "network": {
         "class": null,
