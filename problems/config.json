@@ -1,15 +1,15 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 100,
+        "n_epochs": 1,
         "metrics": {
             "target_metric": "valid_metric"
         }
     },
     "data": {
         "augment": true,
-        "bs_train": 64,
-        "bs_valid": 64
+        "bs_train": 12,
+        "bs_valid": 12
     },
     "network": {
         "class": null,
