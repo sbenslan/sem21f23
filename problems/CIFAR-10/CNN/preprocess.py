@@ -7,7 +7,7 @@
 import os
 import torch
 import torchvision
-from torchvision.transforms import RandomHorizontalFLip, RandomCrop, ToTensor, Normalize, Compose
+from torchvision.transforms import RandomHorizontalFlip, RandomCrop, ToTensor, Normalize, Compose
 
 
 
