@@ -35,7 +35,7 @@ def get_transforms(augment):
     return transforms
 
 
-def load_data_sets(logboog):
+def load_data_sets(logbook):
     transforms  = get_transforms(logbook.config['data']['augment'])
     train_set   = torchvision.datasets.CIFAR10(logbook.dir_data, train=True, transform=transforms['training'], targettransform=None, download=False)
     valid_set    = torchvision.datasets.CIFAR10(logbook.dir_data, train=True, transform=transforms['validation'], targettransform=None, download=False)
