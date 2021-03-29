@@ -1,0 +1,35 @@
+{
+    "experiment": {
+        "n_folds": 1,
+        "n_epochs": 90,
+        "metrics": {
+            "target_metric": "valid_loss"
+        }
+    },
+    "data": {
+        "augment": true,
+        "bs_train": 48,
+        "bs_valid": 48
+    },
+    "network": {
+        "class": "CNN",
+        "params": null,
+        "quantize": null
+    },
+    "training": {
+        "loss_function": {
+            "class": null,
+            "params": null
+        },
+        "optimizer": {
+            "class": null,
+            "params": null
+        },
+        "lr_scheduler": {
+            "class": null,
+            "params": null,
+            "step_metric": null
+        },
+        "quantize": null
+    }
+}
