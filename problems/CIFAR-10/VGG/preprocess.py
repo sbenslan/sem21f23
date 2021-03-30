@@ -1,7 +1,14 @@
+''' define two functions:
+    get_transforms(augment)
+        returns transforms for load_data_sets() to transform input data
+    load_data_sets(logbook)
+        returns train_set, valid_set for model training and validation
+'''
+import os
+import torch
 import torchvision
-from torchvision.transforms import RandomCrop, RandomHorizontalFlip, ToTensor, Normalize, Compose
+from torchvision.transforms import RandomHorizontalFlip, RandomCrop, ToTensor, Normalize, Compose
 
-from quantlab.treat.data.split import transform_random_split
 
 
 _CIFAR10 = {
@@ -28,11 +35,9 @@ def get_transforms(augment):
     return transforms
 
 
-def load_data_sets(dir_data, data_config):
-    transforms           = get_transforms(data_config['augment'])
-    trainvalid_set       = torchvision.datasets.CIFAR10(root=dir_data, train=True, download=True)
-    len_train            = int(len(trainvalid_set) * (1.0 - data_config['valid_fraction']))
-    train_set, valid_set = transform_random_split(trainvalid_set, [len_train, len(trainvalid_set) - len_train],
-                                                [transforms['training'], transforms['validation']])
-    test_set             = torchvision.datasets.CIFAR10(root=dir_data, train=False, download=True, transform=transforms['validation'])
-    return train_set, valid_set, test_set
+def load_data_sets(logbook):
+    transforms  = get_transforms(logbook.config['data']['augment'])
+    train_set   = torchvision.datasets.CIFAR10(logbook.dir_data, train=True, transform=transforms['training'], download=False)
+    valid_set    = torchvision.datasets.CIFAR10(logbook.dir_data, train=True, transform=transforms['validation'], download=False)
+
+    return train_set, valid_set
