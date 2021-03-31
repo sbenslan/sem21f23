@@ -14,7 +14,7 @@
     "network": {
         "class": "VGG",
         "params": {
-            "config": "VGG19",
+            "config": "VGG11",
             "bn": true
         },
         "quantize": null
