@@ -16,7 +16,7 @@ __CONFIGS__ = {
 
 
 class VGG(nn.Module):
-    def __init__(self, config, bn=False, num_classes=1000):
+    def __init__(self, config, bn=False, num_classes=10):
         super(VGG, self).__init__()
         if bn:
             adapter = nn.Sequential(
