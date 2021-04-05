@@ -3,7 +3,7 @@
         "n_folds": 1,
         "n_epochs": 90,
         "metrics": {
-            "target_metric": "valid_loss"
+            "target_metric": "valid_metric"
         }
     },
     "data": {
