@@ -38,7 +38,7 @@
                 "schedule": {
                     "0": 1,
                     "50": 0.5,
-                    "65": 0.1,
+                    "65": 0.1
                 }
             },
             "step_metric": "valid_metric"
