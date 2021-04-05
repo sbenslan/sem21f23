@@ -1,9 +1,9 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 90,
+        "n_epochs": 120,
         "metrics": {
-            "target_metric": "valid_metric"
+            "target_metric": "valid_loss"
         }
     },
     "data": {
@@ -29,7 +29,7 @@
             "params": {
                 "lr": 0.01,
                 "momentum": 0.9,
-                "weight_decay": 5e-4
+                "weight_decay": 1.25e-4
             }
         },
         "lr_scheduler": {
@@ -37,8 +37,9 @@
             "params": {
                 "schedule": {
                     "0": 1,
-                    "50": 0.5,
-                    "65": 0.1
+                    "60": 0.1,
+                    "80": 0.01,
+                    "90": 0.001
                 }
             },
             "step_metric": "valid_metric"
