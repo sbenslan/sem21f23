@@ -1,7 +1,7 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 120,
+        "n_epochs": 100,
         "metrics": {
             "target_metric": "valid_loss"
         }
@@ -27,9 +27,9 @@
         "optimizer": {
             "class": "SGD",
             "params": {
-                "lr": 0.01,
+                "lr": 0.1,
                 "momentum": 0.9,
-                "weight_decay": 1.25e-4
+                "weight_decay": 5e-4
             }
         },
         "lr_scheduler": {
@@ -37,8 +37,8 @@
             "params": {
                 "schedule": {
                     "0": 1,
-                    "60": 0.1,
-                    "80": 0.01,
+                    "50": 0.1,
+                    "70": 0.01,
                     "90": 0.001
                 }
             },
