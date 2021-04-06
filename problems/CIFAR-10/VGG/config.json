@@ -1,7 +1,7 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 100,
+        "n_epochs": 80,
         "metrics": {
             "target_metric": "valid_loss"
         }
@@ -37,9 +37,8 @@
             "params": {
                 "schedule": {
                     "0": 1,
-                    "65": 0.1,
-                    "80": 0.01,
-                    "90": 0.001
+                    "50": 0.1,
+                    "65": 0.01
                 }
             },
             "step_metric": "valid_metric"
