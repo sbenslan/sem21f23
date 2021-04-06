@@ -14,7 +14,7 @@
     "network": {
         "class": "VGG",
         "params": {
-            "config": "VGG11",
+            "config": "VGG16",
             "bn": true
         },
         "quantize": null
@@ -37,8 +37,8 @@
             "params": {
                 "schedule": {
                     "0": 1,
-                    "50": 0.1,
-                    "70": 0.01,
+                    "65": 0.1,
+                    "80": 0.01,
                     "90": 0.001
                 }
             },
