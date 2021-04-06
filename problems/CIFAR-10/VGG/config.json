@@ -1,7 +1,7 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 80,
+        "n_epochs": 90,
         "metrics": {
             "target_metric": "valid_loss"
         }
@@ -14,10 +14,21 @@
     "network": {
         "class": "VGG",
         "params": {
-            "config": "VGG16",
+            "config": "VGG19",
             "bn": true
         },
-        "quantize": null
+        "quantize": {
+            "routine": "features_ste_inq",
+            "STE": {
+                "n_levels": 255,
+                "quant_start_epoch": 28
+            },
+            "INQ": {
+                "n_levels": 3,
+                "quant_init_method": "uniform-l2-opt",
+                "quant_strategy": "magnitude"
+            }
+        }
     },
     "training": {
         "loss_function": {
@@ -37,14 +48,39 @@
             "params": {
                 "schedule": {
                     "0": 1,
-                    "50": 0.1,
-                    "65": 0.01
+                    "25": 0.1,
+                    "33": 1,
+                    "39": 0.1,
+                    "43": 1,
+                    "49": 0.1,
+                    "53": 1,
+                    "59": 0.1,
+                    "63": 1,
+                    "69": 0.1,
+                    "73": 1,
+                    "79": 0.1
                 }
             },
             "step_metric": "valid_metric"
         },
-        "quantize": null
-
+        "quantize": {
+            "routine": "features_ste_inq_get_controllers",
+            "STE": {
+                "clear_optim_state_on_step": false
+            },
+            "INQ": {
+                "schedule": {
+                    "30": 0.2,
+                    "40": 0.4,
+                    "50": 0.6,
+                    "60": 0.8,
+                    "70": 0.9,
+                    "80": 1.0
+                },
+                "clear_optim_state_on_step": true
+            }
+        }
     }
 }
+
 
