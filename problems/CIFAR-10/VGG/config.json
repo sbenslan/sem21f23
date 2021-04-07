@@ -19,6 +19,10 @@
         },
         "quantize": {
             "routine": "features_ste_inq",
+            "STE": {
+                "n_levels": 255,
+                "quant_start_epoch": 38
+            },
             "INQ": {
                 "n_levels": 3,
                 "quant_init_method": "uniform-l2-opt",
@@ -51,6 +55,9 @@
         },
         "quantize": {
             "routine": "features_ste_inq_get_controllers",
+            "STE": {
+                "clear_optim_state_on_step": false
+            },
             "INQ": {
                 "schedule": {
                     "40": 0.5,
