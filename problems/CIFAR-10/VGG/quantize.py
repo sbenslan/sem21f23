@@ -19,12 +19,10 @@ def features_ste_inq(config, net):
 
         return conv_nodes
 
-    '''
     # add STE in front of convolutions
     ste_config = config['STE']
     conv_nodes = get_features_conv_nodes(net)
     qg.edit.add_before_linear_ste(net, conv_nodes, num_levels=ste_config['n_levels'], quant_start_epoch=ste_config['quant_start_epoch'])
-    '''
 
     # replace convolutions with INQ convolutions
     inq_config = config['INQ']
@@ -40,17 +38,16 @@ def features_ste_inq_get_controllers(config, net):
     rule = qg.analyse.get_rules_multiple_blocks(['features'])
     features_nodes = qg.analyse.find_nodes(net_nodes, rule, mix='or')
 
-    '''
+
     # get STE controller
     ste_ctrl_config = config['STE']
     ste_modules = qa.ste.STEController.get_ste_modules(features_nodes)
     ste_controller = qa.ste.STEController(ste_modules, ste_ctrl_config['clear_optim_state_on_step'])
-    '''
 
     # get INQ controller
     inq_ctrl_config = config['INQ']
     inq_modules = qa.inq.INQController.get_inq_modules(features_nodes)
     inq_controller = qa.inq.INQController(inq_modules, inq_ctrl_config['schedule'], inq_ctrl_config['clear_optim_state_on_step'])
 
-    return [inq_controller]
-    #return [ste_controller, inq_controller]
+    #return [inq_controller]
+    return [ste_controller, inq_controller]
