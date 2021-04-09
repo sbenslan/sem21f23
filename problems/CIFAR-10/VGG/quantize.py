@@ -8,7 +8,7 @@ __all__ = ['features_ste_inq', 'features_ste_inq_get_controllers']
 def features_ste_inq(config, net):
 
     def get_features_conv_nodes(net):
-
+        print('get_features_conv_nodes')
         net_nodes = qg.analyse.list_nodes(net, verbose=False)
 
         rule1 = qg.analyse.get_rules_multiple_blocks(['features'])
@@ -33,7 +33,7 @@ def features_ste_inq(config, net):
 
 
 def features_ste_inq_get_controllers(config, net):
-
+    print('features_ste_inq_get_controllers')
     net_nodes = qg.analyse.list_nodes(net)
     rule = qg.analyse.get_rules_multiple_blocks(['features'])
     features_nodes = qg.analyse.find_nodes(net_nodes, rule, mix='or')

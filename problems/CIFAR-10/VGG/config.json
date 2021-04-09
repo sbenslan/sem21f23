@@ -21,7 +21,7 @@
             "routine": "features_ste_inq",
             "STE": {
                 "n_levels": 255,
-                "quant_start_epoch": 38
+                "quant_start_epoch": 2
             },
             "INQ": {
                 "n_levels": 3,
@@ -60,8 +60,8 @@
             },
             "INQ": {
                 "schedule": {
-                    "40": 0.5,
-                    "50": 1.0
+                    "2": 0.2,
+                    "4": 0.4
                 },
                 "clear_optim_state_on_step": true
             }
