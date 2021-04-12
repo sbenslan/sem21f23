@@ -8,13 +8,13 @@
     },
     "data": {
         "augment": true,
-        "bs_train": 48,
-        "bs_valid": 48
+        "bs_train": 64,
+        "bs_valid": 64
     },
     "network": {
         "class": "VGG",
         "params": {
-            "config": "VGG11",
+            "config": "VGG19",
             "bn": true
         },
         "quantize": {
