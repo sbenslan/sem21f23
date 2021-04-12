@@ -20,6 +20,7 @@ hvd.init()
 
 # create/retrieve experiment logbook
 logbook = Logbook(args.problem, args.topology, args.exp_id)
+#logbook.config
 
 # run experiment
 if args.mode == 'train':

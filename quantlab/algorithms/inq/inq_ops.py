@@ -24,7 +24,7 @@ class INQController(Controller):
     modules to control and an INQ schedule; then, insert a call to the `step`
     function once per epoch.
     """
-    def __init__(self, modules, schedule, clear_optim_state_on_step=False):#, rescale_weights=False):
+    def __init__(self, modules, schedule, clear_optim_state_on_step=False): #, rescale_weights=False):
         super(INQController, self).__init__()
         self.modules = modules
         self.fraction = 0.0

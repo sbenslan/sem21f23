@@ -48,9 +48,10 @@ def get_network(logbook):
 
     # create the network
     net = getattr(logbook.lib, logbook.config['network']['class'])(**logbook.config['network']['params'])
-
+    print('get_network')
     # quantize (if specified)
     if logbook.config['network']['quantize'] is not None:
+        print('get_network for quantize')
         quant_convert = getattr(logbook.lib, logbook.config['network']['quantize']['routine'])
         net = quant_convert(logbook.config['network']['quantize'], net)
 
@@ -62,6 +63,7 @@ def get_network(logbook):
 
 def get_training(logbook, net):
     """Return a training procedure for the experiment."""
+    print('get_training')
 
     # loss function
     loss_fn_choice = {**nn.__dict__, **logbook.lib.__dict__}
@@ -83,9 +85,11 @@ def get_training(logbook, net):
 
     # quantization controllers (if specified)
     if logbook.config['training']['quantize']:
+        print('get_training for quantize')
         quant_controls = getattr(logbook.lib, logbook.config['training']['quantize']['routine'])
         ctrls = quant_controls(logbook.config['training']['quantize'], net)
     else:
+        print('did not get_training for quantize')
         ctrls = []
 
     return loss_fn, opt, lr_sched, ctrls

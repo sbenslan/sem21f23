@@ -69,6 +69,7 @@ def replace_linear_inq(net, nodes_set, num_levels, quant_init_method=None, quant
         m_type = m.__class__.__name__
         inq_node = None
         if m_type == 'Linear':
+            print('Linear inq node replacement')
             in_features = m.in_features
             out_features = m.out_features
             bias = m.bias
@@ -84,12 +85,15 @@ def replace_linear_inq(net, nodes_set, num_levels, quant_init_method=None, quant
             groups = m.groups
             bias = m.bias
             if m_type == 'Conv1d':
+                print('Conv1d inq node replacement')
                 inq_node = algo.inq.INQConv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
                                               num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy)
             if m_type == 'Conv2d':
+                print('Conv2d inq node replacement')
                 inq_node = algo.inq.INQConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
                                               num_levels=num_levels, quant_init_method=quant_init_method, quant_strategy=quant_strategy)
             if m_type == 'Conv3d':
+                print('Conv3d inq node replacement')
                 raise NotImplementedError
         assert(inq_node is not None)
         _replace_node(net, n, inq_node)

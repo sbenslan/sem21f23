@@ -11,7 +11,7 @@ def postprocess_gt(gt_labels):
     return [l.item() for l in gt_labels.detach().cpu()]
 
 '''
-#test if it works when I take the ImageNet/VGG/postprocess.py
+#test if it works when I take the ImageNet/VGG-CIFAR/postprocess.py
 import torch
 
 
