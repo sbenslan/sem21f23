@@ -245,7 +245,7 @@ class INQNodeController:
         weight, weight_frozen = self.get_weight_params(module)
         
         weight_frozen = weight_frozen.detach()
-        idx_frozen = ~torch.isnan(weight_frozen)
+        idx_frozen = torch.isnan(weight_frozen) # sebastian: deleted ~ infront of: ~torch.isnan()
         weight_assembled = torch.zeros_like(weight_frozen)
         weight_assembled[idx_frozen] = weight_frozen[idx_frozen]  # quantized part
         mask_full_prec = torch.isnan(weight_frozen).float()

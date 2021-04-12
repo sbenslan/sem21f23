@@ -8,8 +8,8 @@
     },
     "data": {
         "augment": true,
-        "bs_train": 64,
-        "bs_valid": 64
+        "bs_train": 84,
+        "bs_valid": 84
     },
     "network": {
         "class": "VGG",
