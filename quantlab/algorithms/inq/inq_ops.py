@@ -140,7 +140,7 @@ class INQNodeController:
     
     def inq_step(self, fraction):
         """First, determine quantization levels. Then, quantize given fraction of weights."""
-
+        print("inq_step")
         if self.quant_init_method is None:
             # update s
             if self.fraction == 0.0 and math.isnan(self.s):
