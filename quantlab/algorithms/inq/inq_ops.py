@@ -128,6 +128,7 @@ class INQNodeController:
     @staticmethod
     def inq_quantize(weight, quant_levels):
         """Quantize a weight tensor using the INQ quantization scheme."""
+        print("inq_quantize")
         best_quant_level = torch.zeros_like(weight)
         min_quant_err = torch.full_like(weight, float('Inf'))
         for ql in quant_levels:
@@ -238,7 +239,7 @@ class INQNodeController:
             assert False
     
     def inq_assemble_weight(self, module=None):
-        
+        print("inq_assemble_weight")
         # with nn.DataParallel, the module is copied, so self.module cannot be used
         # WAS THE FUNCTION 'get_weight_params' DESIGNED LATER THAN '@property's 'weight' AND 'weigth_frozen'?
         weight, weight_frozen = self.get_weight_params(module)
@@ -253,6 +254,7 @@ class INQNodeController:
         return weight_assembled
     
     def rescale_weights(self):
+        print("rescale_weights")
         eps = 1e-8  # HARD CODED: MAYBE '__eps__' IS BETTER IDENTIFIER
         self.weight.data.mul_((self.s / 2) / (self.weight.data.abs().mean().item() + eps))
 
