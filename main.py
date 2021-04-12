@@ -30,17 +30,21 @@ if args.mode == 'train':
     for i_fold in range(logbook.i_fold, logbook.config['experiment']['n_folds']):
 
         # create data sets, network, and training algorithm
+        print("load data")
         train_l, valid_l = get_data(logbook)
+        print("load network")
         net = get_network(logbook)
+        print("create training algorithm")
         loss_fn, opt, lr_sched, ctrls = get_training(logbook, net)
 
         # boot logging instrumentation and load most recent checkpoint
         logbook.open_fold()
         logbook.load_checkpoint(net, opt, lr_sched, ctrls, 'last')
-
+        print("start main routine")
         # main routine
         for i_epoch in range(logbook.i_epoch, logbook.config['experiment']['n_epochs']):
 
+            print(i_epoch)
             train_stats = train(logbook, train_l, net, loss_fn, opt, ctrls)
             valid_stats = validate(logbook, valid_l, net, loss_fn, ctrls)
 
