@@ -250,8 +250,6 @@ class INQNodeController:
         weight_assembled[idx_frozen] = weight_frozen[idx_frozen]  # quantized part
         mask_full_prec = torch.isnan(weight_frozen).float()
         weight_full_prec = mask_full_prec * weight
-        print("weight_full_prec",weight_full_prec)
-        print("weight_assembled", weight_assembled)
         weight_assembled = weight_assembled + weight_full_prec  # weight_frozen[frozen] + weight[~frozen]
         return weight_assembled
     
