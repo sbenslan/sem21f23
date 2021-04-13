@@ -1,9 +1,4 @@
-''' define two functions:
-    get_transforms(augment)
-        returns transforms for load_data_sets() to transform input data
-    load_data_sets(logbook)
-        returns train_set, valid_set for model training and validation
-'''
+
 import os
 import torch
 import torchvision

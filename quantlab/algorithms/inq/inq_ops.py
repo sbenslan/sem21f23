@@ -250,6 +250,8 @@ class INQNodeController:
         weight_assembled[idx_frozen] = weight_frozen[idx_frozen]  # quantized part
         mask_full_prec = torch.isnan(weight_frozen).float()
         weight_full_prec = mask_full_prec * weight
+        print("weight_full_prec",weight_full_prec)
+        print("weight_assembled", weight_assembled)
         weight_assembled = weight_assembled + weight_full_prec  # weight_frozen[frozen] + weight[~frozen]
         return weight_assembled
     
@@ -331,6 +333,7 @@ class INQConv2d(nn.Conv2d):
 
     def forward(self, input):
         weight_assembled = self.weight_inq_ctrl.inq_assemble_weight(self)
+
         
 #        if self.padding_mode == 'circular':
 #            expanded_padding = ((self.padding[1] + 1) // 2, self.padding[1] // 2,
@@ -338,6 +341,8 @@ class INQConv2d(nn.Conv2d):
 #            return nn.functional.conv2d(nn.functional.pad(input, expanded_padding, mode='circular'),
 #                                        weightAssembled, self.bias, self.stride,
 #                                        (0,), self.dilation, self.groups)
+        print("CONV-2D layer:", nn.functional.conv2d(input, weight_assembled, self.bias, self.stride,
+                                    self.padding, self.dilation, self.groups))
 
         return nn.functional.conv2d(input, weight_assembled, self.bias, self.stride,
                                     self.padding, self.dilation, self.groups)

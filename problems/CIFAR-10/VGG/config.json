@@ -1,20 +1,20 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 42,
+        "n_epochs": 80,
         "metrics": {
             "target_metric": "valid_loss"
         }
     },
     "data": {
         "augment": true,
-        "bs_train": 1,
-        "bs_valid": 1
+        "bs_train": 64,
+        "bs_valid": 64
     },
     "network": {
         "class": "VGG",
         "params": {
-            "config": "VGG19",
+            "config": "VGG16",
             "bn": true
         },
         "quantize": {
@@ -24,8 +24,8 @@
                 "quant_start_epoch": 28
             },
             "INQ": {
-                "n_levels": 5,
-                "quant_init_method": "uniform-l1-opt",
+                "n_levels": 3,
+                "quant_init_method": "uniform-l2-opt",
                 "quant_strategy": "magnitude"
             }
         }
@@ -59,8 +59,8 @@
             },
             "INQ": {
                 "schedule": {
-                    "30": 0.5,
-                    "40": 1.0
+                    "10": 0.5,
+                    "15": 1.0
                 },
                 "clear_optim_state_on_step": true
             }
