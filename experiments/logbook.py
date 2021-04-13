@@ -107,7 +107,7 @@ class Logbook(object):
     def _whoami(self, verbose):
         hw_cfg = {
             'n_cpus': mp.cpu_count(),
-            'n_gpus': torch.cuda.device_count() if torch.cuda.is_available() else 0
+            'n_gpus': torch.cuda.device_count() if torch.cuda.is_available() else 2   # sebastian: switched 0 to 2
         }
         sw_cfg = {
             'global_size': hvd.size(),

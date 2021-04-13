@@ -1,15 +1,15 @@
 {
     "experiment": {
         "n_folds": 1,
-        "n_epochs": 41,
+        "n_epochs": 42,
         "metrics": {
             "target_metric": "valid_loss"
         }
     },
     "data": {
         "augment": true,
-        "bs_train": 80,
-        "bs_valid": 80
+        "bs_train": 1,
+        "bs_valid": 1
     },
     "network": {
         "class": "VGG",
@@ -59,13 +59,8 @@
             },
             "INQ": {
                 "schedule": {
-                    "30": 0.2,
-                    "40": 0.4,
-                    "50": 0.6,
-                    "60": 0.7,
-                    "70": 0.8,
-                    "80": 0.9,
-                    "90": 1.0
+                    "30": 0.5,
+                    "40": 1.0
                 },
                 "clear_optim_state_on_step": true
             }
