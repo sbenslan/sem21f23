@@ -339,8 +339,6 @@ class INQConv2d(nn.Conv2d):
 #            return nn.functional.conv2d(nn.functional.pad(input, expanded_padding, mode='circular'),
 #                                        weightAssembled, self.bias, self.stride,
 #                                        (0,), self.dilation, self.groups)
-        print("CONV-2D layer:", nn.functional.conv2d(input, weight_assembled, self.bias, self.stride,
-                                    self.padding, self.dilation, self.groups))
 
         return nn.functional.conv2d(input, weight_assembled, self.bias, self.stride,
                                     self.padding, self.dilation, self.groups)
