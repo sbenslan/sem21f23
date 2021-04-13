@@ -8,8 +8,8 @@
     },
     "data": {
         "augment": true,
-        "bs_train": 64,
-        "bs_valid": 64
+        "bs_train": 80,
+        "bs_valid": 80
     },
     "network": {
         "class": "VGG",
@@ -24,8 +24,8 @@
                 "quant_start_epoch": 28
             },
             "INQ": {
-                "n_levels": 3,
-                "quant_init_method": "uniform-l2-opt",
+                "n_levels": 5,
+                "quant_init_method": "uniform-l1-opt",
                 "quant_strategy": "magnitude"
             }
         }
@@ -59,8 +59,13 @@
             },
             "INQ": {
                 "schedule": {
-                    "30": 0.5,
-                    "40": 1.0
+                    "30": 0.2,
+                    "40": 0.4,
+                    "50": 0.6,
+                    "60": 0.7,
+                    "70": 0.8,
+                    "80": 0.9,
+                    "90": 1.0
                 },
                 "clear_optim_state_on_step": true
             }
