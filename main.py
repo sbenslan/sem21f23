@@ -74,7 +74,7 @@ if args.mode == 'train':
 
         logbook.close_fold()
 
- elif args.mode == 'test':
+# elif args.mode == 'test':
 #     # test
 #   net.eval()
 #   test_stats = test(logbook, net, device, loss_fn, test_l)
